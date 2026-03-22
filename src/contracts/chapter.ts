@@ -20,8 +20,8 @@ export const mangaChapterListSchema = z.object({
   chapters: z.array(chapterItemSchema),
 });
 
-export const chapterReaderParamsSchema = mangaSlugParamsSchema.extend({
-  chapterId: z.coerce.number().int().positive(),
+export const chapterReaderParamsSchema = z.object({
+  id: z.coerce.number().int().positive(),
 });
 
 export const chapterReaderNavSchema = z.object({

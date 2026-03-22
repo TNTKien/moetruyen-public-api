@@ -55,7 +55,7 @@ export class ChapterRepository {
     };
   }
 
-  async getPublicChapterReaderById(slug: string, chapterId: number): Promise<ChapterReader | null> {
+  async getPublicChapterReaderById(chapterId: number): Promise<ChapterReader | null> {
     const chapterRow = await db
       .select({
         mangaId: manga.id,
@@ -77,7 +77,7 @@ export class ChapterRepository {
       })
       .from(chapters)
       .innerJoin(manga, eq(manga.id, chapters.mangaId))
-      .where(and(eq(manga.slug, slug), eq(chapters.id, chapterId), eq(manga.isHidden, 0)))
+      .where(and(eq(chapters.id, chapterId), eq(manga.isHidden, 0)))
       .limit(1)
       .then((rows) => rows[0] ?? null);
 

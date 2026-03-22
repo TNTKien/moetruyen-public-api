@@ -23,6 +23,7 @@ export const mountOpenApiSpec = (app: Hono<AppBindings>) => {
         tags: [
           { name: "System", description: "Operational endpoints" },
           { name: "Manga", description: "Public manga resources" },
+          { name: "Chapters", description: "Public chapter reader resources" },
           { name: "Genres", description: "Public genre resources" },
           { name: "Search", description: "Public search resources" },
         ],

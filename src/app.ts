@@ -5,6 +5,7 @@ import { requestIdMiddleware, type AppBindings } from "./lib/request-id.js";
 import { jsonError } from "./lib/response.js";
 import { mountOpenApiSpec } from "./openapi/spec.js";
 import { mountScalarDocs } from "./openapi/scalar.js";
+import { chapterRoute } from "./routes/chapter.route.js";
 import { genreRoute } from "./routes/genre.route.js";
 import { healthRoute } from "./routes/health.route.js";
 import { mangaRoute } from "./routes/manga.route.js";
@@ -16,6 +17,7 @@ app.use("*", requestIdMiddleware);
 
 app.route("/", healthRoute);
 app.route("/v1", mangaRoute);
+app.route("/v1", chapterRoute);
 app.route("/v1", genreRoute);
 app.route("/v1", searchRoute);
 

@@ -5,7 +5,7 @@ export const chapterService = {
     return chapterRepository.listPublicChaptersByMangaSlug(slug);
   },
 
-  getPublicChapterReaderById(slug: string, chapterId: number) {
-    return chapterRepository.getPublicChapterReaderById(slug, chapterId);
+  getPublicChapterReaderById(chapterId: number) {
+    return chapterRepository.getPublicChapterReaderById(chapterId);
   },
 };
