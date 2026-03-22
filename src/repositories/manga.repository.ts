@@ -64,6 +64,53 @@ const buildGenreFilter = (genreName: string): SQL<unknown> => sql`
   )
 `;
 
+const buildGroupNameMatchFilter = (groupName: string): SQL<unknown> => sql`
+  (
+    lower(trim(coalesce(${manga.groupName}, ''))) = lower(trim(${groupName}))
+    OR (
+      ',' ||
+      replace(
+        replace(
+          replace(
+            replace(
+              replace(
+                replace(
+                  replace(
+                    replace(
+                      replace(
+                        replace(lower(trim(coalesce(${manga.groupName}, ''))), ' / ', ','),
+                        '/',
+                        ','
+                      ),
+                      ' & ',
+                      ','
+                    ),
+                    '&',
+                    ','
+                  ),
+                  ' + ',
+                  ','
+                ),
+                '+',
+                ','
+              ),
+              ';',
+              ','
+            ),
+            '|',
+            ','
+          ),
+          ', ',
+          ','
+        ),
+        ' ,',
+        ','
+      ) || ','
+    ) LIKE ('%,' || lower(trim(${groupName})) || ',%')
+    OR lower(coalesce(${manga.groupName}, '')) LIKE ('%' || lower(trim(${groupName})) || '%')
+  )
+`;
+
 const mapMangaGenres = async (mangaIds: number[]) => {
   if (mangaIds.length === 0) {
     return new Map<number, MangaListItem["genres"]>();
@@ -141,8 +188,7 @@ const buildMangaConditions = (query: Pick<MangaListQuery, "q" | "genre" | "statu
 };
 
 export class MangaRepository {
-  async listPublicManga(query: MangaListQuery): Promise<PublicMangaListResult> {
-    const conditions = buildMangaConditions(query);
+  private async listPublicMangaWithConditions(query: MangaListQuery, conditions: SQL<unknown>[]): Promise<PublicMangaListResult> {
     const offset = (query.page - 1) * query.limit;
 
     const totalResult = await db
@@ -189,6 +235,18 @@ export class MangaRepository {
       })),
       total,
     };
+  }
+
+  async listPublicManga(query: MangaListQuery): Promise<PublicMangaListResult> {
+    const conditions = buildMangaConditions(query);
+    return this.listPublicMangaWithConditions(query, conditions);
+  }
+
+  async listPublicMangaByGroupName(groupName: string, query: MangaListQuery): Promise<PublicMangaListResult> {
+    const normalizedGroupName = groupName.trim();
+    const conditions = [...buildMangaConditions(query), buildGroupNameMatchFilter(normalizedGroupName)];
+
+    return this.listPublicMangaWithConditions(query, conditions);
   }
 
   async findPublicMangaById(id: number): Promise<MangaDetail | null> {

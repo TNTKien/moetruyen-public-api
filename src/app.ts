@@ -17,6 +17,8 @@ import { genreRoute } from "./routes/genre.route.js";
 import { healthRoute } from "./routes/health.route.js";
 import { mangaRoute } from "./routes/manga.route.js";
 import { searchRoute } from "./routes/search.route.js";
+import { teamRoute } from "./routes/team.route.js";
+import { userRoute } from "./routes/user.route.js";
 
 export const app = new Hono<AppBindings>();
 
@@ -47,6 +49,8 @@ app.route("/v1", mangaRoute);
 app.route("/v1", chapterRoute);
 app.route("/v1", genreRoute);
 app.route("/v1", searchRoute);
+app.route("/v1", teamRoute);
+app.route("/v1", userRoute);
 
 mountOpenApiSpec(app);
 mountScalarDocs(app);

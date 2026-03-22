@@ -16,6 +16,8 @@ const { mangaService } = await import("../src/services/manga.service.ts");
 const { chapterService } = await import("../src/services/chapter.service.ts");
 const { genreService } = await import("../src/services/genre.service.ts");
 const { searchService } = await import("../src/services/search.service.ts");
+const { teamService } = await import("../src/services/team.service.ts");
+const { userService } = await import("../src/services/user.service.ts");
 
 const originals = {
   listPublicManga: mangaService.listPublicManga,
@@ -24,6 +26,12 @@ const originals = {
   getPublicChapterReaderById: chapterService.getPublicChapterReaderById,
   listPublicGenres: genreService.listPublicGenres,
   searchPublicManga: searchService.searchPublicManga,
+  getPublicTeamById: teamService.getPublicTeamById,
+  listPublicTeamUpdatesByTeamId: teamService.listPublicTeamUpdatesByTeamId,
+  listPublicTeamMangaByTeamId: teamService.listPublicTeamMangaByTeamId,
+  listPublicTeamMembersByTeamId: teamService.listPublicTeamMembersByTeamId,
+  getPublicUserByUsername: userService.getPublicUserByUsername,
+  listPublicUserCommentsByUsername: userService.listPublicUserCommentsByUsername,
 };
 
 afterEach(() => {
@@ -33,6 +41,12 @@ afterEach(() => {
   chapterService.getPublicChapterReaderById = originals.getPublicChapterReaderById;
   genreService.listPublicGenres = originals.listPublicGenres;
   searchService.searchPublicManga = originals.searchPublicManga;
+  teamService.getPublicTeamById = originals.getPublicTeamById;
+  teamService.listPublicTeamUpdatesByTeamId = originals.listPublicTeamUpdatesByTeamId;
+  teamService.listPublicTeamMangaByTeamId = originals.listPublicTeamMangaByTeamId;
+  teamService.listPublicTeamMembersByTeamId = originals.listPublicTeamMembersByTeamId;
+  userService.getPublicUserByUsername = originals.getPublicUserByUsername;
+  userService.listPublicUserCommentsByUsername = originals.listPublicUserCommentsByUsername;
 });
 
 describe("public api routes", () => {
@@ -310,6 +324,331 @@ describe("public api routes", () => {
     expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.genres);
     expect(body.data).toHaveLength(2);
     expect(body.data[0]).toEqual({ id: 1, name: "Drama", count: 10 });
+  });
+
+  it("returns public team detail", async () => {
+    teamService.getPublicTeamById = async () => ({
+      id: 16,
+      slug: "hust-electro-neko-team",
+      name: "HUST Electro Neko Team",
+      intro: "Public-safe intro",
+      avatarUrl: "https://example.com/team-avatar.png",
+      coverUrl: "https://example.com/team-cover.png",
+      memberCount: 7,
+      leaderCount: 1,
+      totalMangaCount: 12,
+      totalChapterCount: 98,
+      totalCommentCount: 54,
+    });
+
+    const response = await app.request("http://local/v1/teams/16");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.teamDetail);
+    expect(body.data).toMatchObject({
+      slug: "hust-electro-neko-team",
+      memberCount: 7,
+      totalMangaCount: 12,
+    });
+  });
+
+  it("returns 404 when public team detail is missing", async () => {
+    teamService.getPublicTeamById = async () => null;
+
+    const response = await app.request("http://local/v1/teams/999999");
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error).toMatchObject({
+      code: "TEAM_NOT_FOUND",
+      message: "Team not found",
+    });
+  });
+
+  it("returns public team members", async () => {
+    teamService.listPublicTeamMembersByTeamId = async () => [
+      {
+        username: "hust_electro_neko",
+        displayName: "HUST Electro Neko",
+        avatarUrl: "https://example.com/member-avatar.png",
+        role: "leader",
+        roleLabel: "Leader",
+      },
+    ];
+
+    const response = await app.request("http://local/v1/teams/16/members");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.teamMembers);
+    expect(body.data[0]).toMatchObject({
+      username: "hust_electro_neko",
+      role: "leader",
+    });
+  });
+
+  it("returns paginated public team updates", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    teamService.listPublicTeamUpdatesByTeamId = async (_id, query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return {
+        items: [
+          {
+            manga: {
+              id: 77,
+              slug: "sample-team-manga",
+              title: "Sample Team Manga",
+            },
+            chapter: {
+              id: 901,
+              number: 21,
+              numberText: "21.000",
+              title: "Chapter 21",
+              date: "2026-03-22T10:47:03.891Z",
+              pages: 18,
+              access: "password_required",
+              isOneshot: false,
+              groupName: "HUST Electro Neko Team",
+            },
+          },
+        ],
+        total: 4,
+      };
+    };
+
+    const response = await app.request("http://local/v1/teams/16/updates?limit=1");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.teamUpdates);
+    expect(receivedQuery).toMatchObject({
+      page: 1,
+      limit: 1,
+    });
+    expect(body.meta.pagination).toEqual({
+      page: 1,
+      limit: 1,
+      total: 4,
+      totalPages: 4,
+    });
+    expect(body.data[0]).toMatchObject({
+      manga: {
+        slug: "sample-team-manga",
+      },
+      chapter: {
+        access: "password_required",
+      },
+    });
+  });
+
+  it("returns 404 when public team updates are missing", async () => {
+    teamService.listPublicTeamUpdatesByTeamId = async () => null;
+
+    const response = await app.request("http://local/v1/teams/999999/updates");
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error).toMatchObject({
+      code: "TEAM_NOT_FOUND",
+      message: "Team not found",
+    });
+  });
+
+  it("returns paginated public team manga", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    teamService.listPublicTeamMangaByTeamId = async (_id, query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return {
+        items: [
+          {
+            id: 77,
+            slug: "sample-team-manga",
+            title: "Sample Team Manga",
+            author: "Author",
+            status: "ongoing",
+            cover: "/uploads/covers/sample-team-manga.webp",
+            coverUrl: "https://moetruyen.net/uploads/covers/sample-team-manga.webp?t=456",
+            coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+            latestChapterNumber: 21,
+            latestChapterNumberText: "21.000",
+            chapterCount: 21,
+            isOneshot: false,
+            genres: [{ id: 2, name: "Action" }],
+          },
+        ],
+        total: 3,
+      };
+    };
+
+    const response = await app.request("http://local/v1/teams/16/manga?limit=1");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.teamMangaList);
+    expect(receivedQuery).toMatchObject({
+      page: 1,
+      limit: 1,
+      sort: "updated_at",
+    });
+    expect(body.meta.pagination).toEqual({
+      page: 1,
+      limit: 1,
+      total: 3,
+      totalPages: 3,
+    });
+    expect(body.data[0]).toMatchObject({
+      slug: "sample-team-manga",
+      chapterCount: 21,
+    });
+  });
+
+  it("returns 404 when public team manga is missing", async () => {
+    teamService.listPublicTeamMangaByTeamId = async () => null;
+
+    const response = await app.request("http://local/v1/teams/999999/manga");
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error).toMatchObject({
+      code: "TEAM_NOT_FOUND",
+      message: "Team not found",
+    });
+  });
+
+  it("returns public user detail", async () => {
+    userService.getPublicUserByUsername = async () => ({
+      username: "hust_electro_neko",
+      displayName: "HUST Electro Neko",
+      avatarUrl: "https://example.com/user-avatar.png",
+      bio: "Reader and translator",
+      joinedAt: "2026-03-22T10:47:03.891Z",
+      commentCount: 42,
+      team: {
+        id: 16,
+        slug: "hust-electro-neko-team",
+        name: "HUST Electro Neko Team",
+        role: "leader",
+        roleLabel: "Leader",
+      },
+    });
+
+    const response = await app.request("http://local/v1/users/hust_electro_neko");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.userDetail);
+    expect(body.data).toMatchObject({
+      username: "hust_electro_neko",
+      commentCount: 42,
+      team: {
+        slug: "hust-electro-neko-team",
+      },
+    });
+  });
+
+  it("returns paginated public user comments", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    userService.listPublicUserCommentsByUsername = async (_username, query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return {
+        items: [
+          {
+            id: 88,
+            kind: "manga_comment",
+            targetTitle: "Sample Manga",
+            contextLabel: "Chapter 3.000 - Chapter 3",
+            contentPreview: "Nice chapter",
+            commentPath: "/manga/sample-manga/chapters/3.000#comment-88",
+            createdAt: "2026-03-22T10:47:03.891Z",
+          },
+        ],
+        total: 5,
+      };
+    };
+
+    const response = await app.request("http://local/v1/users/hust_electro_neko/comments?limit=1");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.userComments);
+    expect(receivedQuery).toMatchObject({
+      page: 1,
+      limit: 1,
+    });
+    expect(body.meta.pagination).toEqual({
+      page: 1,
+      limit: 1,
+      total: 5,
+      totalPages: 5,
+    });
+    expect(body.data[0]).toMatchObject({
+      kind: "manga_comment",
+      targetTitle: "Sample Manga",
+    });
+  });
+
+  it("returns 404 when public user comments are missing", async () => {
+    userService.listPublicUserCommentsByUsername = async () => null;
+
+    const response = await app.request("http://local/v1/users/missing_user/comments");
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error).toMatchObject({
+      code: "USER_NOT_FOUND",
+      message: "User not found",
+    });
+  });
+
+  it("validates user route params", async () => {
+    const response = await app.request("http://local/v1/users/Not-Valid");
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("normalizes user route params before lookup", async () => {
+    let receivedUsername: string | undefined;
+
+    userService.getPublicUserByUsername = async (username) => {
+      receivedUsername = username;
+
+      return {
+        username: "hust_electro_neko",
+        displayName: null,
+        avatarUrl: null,
+        bio: null,
+        joinedAt: null,
+        commentCount: 0,
+        team: null,
+      };
+    };
+
+    const response = await app.request("http://local/v1/users/HUST_ELECTRO_NEKO");
+
+    expect(response.status).toBe(200);
+    expect(receivedUsername).toBe("hust_electro_neko");
+  });
+
+  it("returns 404 when public user detail is missing", async () => {
+    userService.getPublicUserByUsername = async () => null;
+
+    const response = await app.request("http://local/v1/users/missing_user");
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error).toMatchObject({
+      code: "USER_NOT_FOUND",
+      message: "User not found",
+    });
   });
 
   it("validates search query params", async () => {
