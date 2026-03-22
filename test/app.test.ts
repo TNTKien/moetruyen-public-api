@@ -19,8 +19,8 @@ const { searchService } = await import("../src/services/search.service.ts");
 
 const originals = {
   listPublicManga: mangaService.listPublicManga,
-  getPublicMangaBySlug: mangaService.getPublicMangaBySlug,
-  listPublicChaptersByMangaSlug: chapterService.listPublicChaptersByMangaSlug,
+  getPublicMangaById: mangaService.getPublicMangaById,
+  listPublicChaptersByMangaId: chapterService.listPublicChaptersByMangaId,
   getPublicChapterReaderById: chapterService.getPublicChapterReaderById,
   listPublicGenres: genreService.listPublicGenres,
   searchPublicManga: searchService.searchPublicManga,
@@ -28,8 +28,8 @@ const originals = {
 
 afterEach(() => {
   mangaService.listPublicManga = originals.listPublicManga;
-  mangaService.getPublicMangaBySlug = originals.getPublicMangaBySlug;
-  chapterService.listPublicChaptersByMangaSlug = originals.listPublicChaptersByMangaSlug;
+  mangaService.getPublicMangaById = originals.getPublicMangaById;
+  chapterService.listPublicChaptersByMangaId = originals.listPublicChaptersByMangaId;
   chapterService.getPublicChapterReaderById = originals.getPublicChapterReaderById;
   genreService.listPublicGenres = originals.listPublicGenres;
   searchService.searchPublicManga = originals.searchPublicManga;
@@ -123,9 +123,9 @@ describe("public api routes", () => {
   });
 
   it("returns 404 when manga detail is missing", async () => {
-    mangaService.getPublicMangaBySlug = async () => null;
+    mangaService.getPublicMangaById = async () => null;
 
-    const response = await app.request("http://local/v1/manga/missing-slug");
+    const response = await app.request("http://local/v1/manga/999999");
     const body = await response.json();
 
     expect(response.status).toBe(404);
@@ -136,7 +136,7 @@ describe("public api routes", () => {
   });
 
   it("returns chapter payloads for a manga", async () => {
-    chapterService.listPublicChaptersByMangaSlug = async () => ({
+    chapterService.listPublicChaptersByMangaId = async () => ({
       manga: {
         id: 1,
         slug: "sample-manga",
@@ -154,7 +154,7 @@ describe("public api routes", () => {
       ],
     });
 
-    const response = await app.request("http://local/v1/manga/sample-manga/chapters");
+    const response = await app.request("http://local/v1/manga/1/chapters");
     const body = await response.json();
 
     expect(response.status).toBe(200);
