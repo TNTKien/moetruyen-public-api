@@ -47,11 +47,13 @@ Public read-only REST API for MoeTruyen, extracted into a standalone repository.
 ### `GET /v1/manga/:id/chapters`
 
 - `id`: numeric manga id
+- Password-protected chapters and locked oneshot chapters are omitted from this list
 
 ### `GET /v1/chapters/:id`
 
 - `id`: numeric chapter id
 - Response includes `manga`, `chapter`, `pageUrls`, `prevChapter`, and `nextChapter`
+- Password-protected chapters and locked oneshot chapters return `404`
 
 ## Environment variables
 
@@ -178,6 +180,7 @@ Validation and application errors follow this shape:
 - Genre list success path
 - Search validation and success paths
 - Public helper behavior for search normalization and asset URL building
+- Chapter access rules for password-protected and oneshot-locked chapters
 - Database error normalization for conflict and connection-failure cases
 - Test-mode gating for rate limiting and optional monitoring setup
 
