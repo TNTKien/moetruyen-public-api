@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { DEFAULT_LIMIT, DEFAULT_PAGE, MAX_LIMIT } from "../lib/pagination.js";
+
 export const userUsernameParamsSchema = z.object({
   username: z
     .string()
@@ -26,6 +28,26 @@ export const userSummarySchema = z.object({
   team: userTeamSchema.nullable(),
 });
 
+export const userCommentsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(DEFAULT_PAGE),
+  limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
+});
+
+export const userCommentKindSchema = z.enum(["manga_comment", "forum_reply"]);
+
+export const userCommentItemSchema = z.object({
+  id: z.number().int().positive(),
+  kind: userCommentKindSchema,
+  targetTitle: z.string().min(1),
+  contextLabel: z.string().min(1),
+  contentPreview: z.string().min(1),
+  commentPath: z.string().min(1),
+  createdAt: z.string().datetime().nullable(),
+});
+
 export type UserUsernameParams = z.infer<typeof userUsernameParamsSchema>;
 export type UserTeam = z.infer<typeof userTeamSchema>;
 export type UserSummary = z.infer<typeof userSummarySchema>;
+export type UserCommentsQuery = z.infer<typeof userCommentsQuerySchema>;
+export type UserCommentKind = z.infer<typeof userCommentKindSchema>;
+export type UserCommentItem = z.infer<typeof userCommentItemSchema>;
