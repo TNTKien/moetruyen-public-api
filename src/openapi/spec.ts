@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { openAPISpecs } from "hono-openapi";
+import { openAPIRouteHandler } from "hono-openapi";
 
 import { env } from "../config/env.js";
 import type { AppBindings } from "../lib/request-id.js";
@@ -7,7 +7,7 @@ import type { AppBindings } from "../lib/request-id.js";
 export const mountOpenApiSpec = (app: Hono<AppBindings>) => {
   app.get(
     "/openapi.json",
-    openAPISpecs(app, {
+    openAPIRouteHandler(app, {
       documentation: {
         info: {
           title: "Moetruyen Public API",
