@@ -100,6 +100,8 @@ bun run build
 
 `bun run test` uses route-level mocks, so it does not require a live database connection.
 
+GitHub Actions CI runs the same verification steps automatically on `push`, `pull_request`, and manual `workflow_dispatch`.
+
 ## Schema sync
 
 This repo does not own the main database migrations. To refresh the introspected schema from the live database:
@@ -162,5 +164,5 @@ Validation and application errors follow this shape:
 
 ## Next likely work
 
-1. Add chapter page URL payloads backed by `CHAPTER_CDN_BASE_URL`.
-2. Add CI to run `bun run test`, `bun run check`, and `bun run build` automatically.
+1. Tighten production hardening for CORS, rate limiting, and request logging.
+2. Add more data edge-case coverage for password-protected or locked chapters.
