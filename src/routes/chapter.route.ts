@@ -27,6 +27,14 @@ chapterRoute.get(
           },
         },
       },
+      403: {
+        description: "Chapter requires password or is locked",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
       404: {
         description: "Chapter not found",
         content: {
@@ -40,9 +48,9 @@ chapterRoute.get(
   validator("param", chapterReaderParamsSchema, validationHook),
   async (c) => {
     const { id } = c.req.valid("param");
-    const item = await chapterService.getPublicChapterReaderById(id);
+    const result = await chapterService.getPublicChapterReaderById(id);
 
-    if (!item) {
+    if (result.kind === "not_found") {
       throw new AppError({
         code: "CHAPTER_NOT_FOUND",
         message: "Chapter not found",
@@ -50,8 +58,16 @@ chapterRoute.get(
       });
     }
 
+    if (result.kind === "forbidden") {
+      throw new AppError({
+        code: result.reason === "password_required" ? "PASSWORD_REQUIRED" : "CHAPTER_LOCKED",
+        message: result.reason === "password_required" ? "Password required to access this chapter" : "Chapter is locked",
+        status: 403,
+      });
+    }
+
     c.header("Cache-Control", CACHE_CONTROL.mangaChapters);
 
-    return jsonSuccess(c, item);
+    return jsonSuccess(c, result.data);
   },
 );

@@ -4,14 +4,20 @@ import type { ChapterReader, MangaChapterList } from "../contracts/chapter.js";
 import { db } from "../db/client.js";
 import { chapters } from "../db/schema/chapters.js";
 import { manga } from "../db/schema/manga.js";
-import { filterAccessibleChapters, isPublicChapterAccessible } from "../lib/chapter-access.js";
+import { getPublicChapterAccess, type PublicChapterAccess } from "../lib/chapter-access.js";
 import { buildChapterPageUrls, formatNumericText, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
 
-const mapChapterNavigation = (chapter: { id: number; number: string; title: string }) => ({
+export type ChapterReaderLookupResult =
+  | { kind: "ok"; data: ChapterReader }
+  | { kind: "not_found" }
+  | { kind: "forbidden"; reason: Exclude<PublicChapterAccess, "public"> };
+
+const mapChapterNavigation = (chapter: { id: number; number: string; title: string; access: PublicChapterAccess }) => ({
   id: chapter.id,
   number: parseNumericValue(chapter.number) ?? 0,
   numberText: formatNumericText(chapter.number),
   title: chapter.title,
+  access: chapter.access,
 });
 
 export class ChapterRepository {
@@ -46,26 +52,29 @@ export class ChapterRepository {
       .where(eq(chapters.mangaId, mangaItem.id))
       .orderBy(desc(chapters.number), desc(chapters.id));
 
-    const accessibleChapters = filterAccessibleChapters(chapterItems, mangaItem.oneshotLocked);
-
     return {
       manga: {
         id: mangaItem.id,
         slug: mangaItem.slug,
         title: mangaItem.title,
       },
-      chapters: accessibleChapters.map((chapter) => ({
+      chapters: chapterItems.map((chapter) => ({
         id: chapter.id,
         number: parseNumericValue(chapter.number) ?? 0,
         numberText: formatNumericText(chapter.number),
         title: chapter.title,
         date: toIsoDateString(chapter.date),
         pages: chapter.pages,
+        access: getPublicChapterAccess({
+          chapterPasswordHash: chapter.passwordHash,
+          chapterIsOneshot: chapter.isOneshot,
+          mangaOneshotLocked: mangaItem.oneshotLocked,
+        }),
       })),
     };
   }
 
-  async getPublicChapterReaderById(chapterId: number): Promise<ChapterReader | null> {
+  async getPublicChapterReaderById(chapterId: number): Promise<ChapterReaderLookupResult> {
     const chapterRow = await db
       .select({
         mangaId: manga.id,
@@ -92,17 +101,20 @@ export class ChapterRepository {
       .then((rows) => rows[0] ?? null);
 
     if (!chapterRow) {
-      return null;
+      return { kind: "not_found" };
     }
 
-    if (
-      !isPublicChapterAccessible({
-        chapterPasswordHash: chapterRow.chapterPasswordHash,
-        chapterIsOneshot: chapterRow.chapterIsOneshot,
-        mangaOneshotLocked: chapterRow.oneshotLocked,
-      })
-    ) {
-      return null;
+    const chapterAccess = getPublicChapterAccess({
+      chapterPasswordHash: chapterRow.chapterPasswordHash,
+      chapterIsOneshot: chapterRow.chapterIsOneshot,
+      mangaOneshotLocked: chapterRow.oneshotLocked,
+    });
+
+    if (chapterAccess !== "public") {
+      return {
+        kind: "forbidden",
+        reason: chapterAccess,
+      };
     }
 
     const mangaChapters = await db
@@ -117,37 +129,48 @@ export class ChapterRepository {
       .where(eq(chapters.mangaId, chapterRow.mangaId))
       .orderBy(asc(chapters.number), asc(chapters.id));
 
-    const accessibleChapters = filterAccessibleChapters(mangaChapters, chapterRow.oneshotLocked);
+    const navigableChapters = mangaChapters.map((chapter) => ({
+      ...chapter,
+      access: getPublicChapterAccess({
+        chapterPasswordHash: chapter.passwordHash,
+        chapterIsOneshot: chapter.isOneshot,
+        mangaOneshotLocked: chapterRow.oneshotLocked,
+      }),
+    }));
 
-    const currentIndex = accessibleChapters.findIndex((chapter) => chapter.id === chapterRow.chapterId);
-    const prevChapter = currentIndex > 0 ? accessibleChapters[currentIndex - 1] : null;
+    const currentIndex = navigableChapters.findIndex((chapter) => chapter.id === chapterRow.chapterId);
+    const prevChapter = currentIndex > 0 ? navigableChapters[currentIndex - 1] : null;
     const nextChapter =
-      currentIndex >= 0 && currentIndex < accessibleChapters.length - 1 ? accessibleChapters[currentIndex + 1] : null;
+      currentIndex >= 0 && currentIndex < navigableChapters.length - 1 ? navigableChapters[currentIndex + 1] : null;
 
     return {
-      manga: {
-        id: chapterRow.mangaId,
-        slug: chapterRow.mangaSlug,
-        title: chapterRow.mangaTitle,
+      kind: "ok",
+      data: {
+        manga: {
+          id: chapterRow.mangaId,
+          slug: chapterRow.mangaSlug,
+          title: chapterRow.mangaTitle,
+        },
+        chapter: {
+          id: chapterRow.chapterId,
+          number: parseNumericValue(chapterRow.chapterNumber) ?? 0,
+          numberText: formatNumericText(chapterRow.chapterNumber),
+          title: chapterRow.chapterTitle,
+          date: toIsoDateString(chapterRow.chapterDate),
+          pages: chapterRow.chapterPages,
+          access: "public",
+          groupName: chapterRow.chapterGroupName,
+          isOneshot: chapterRow.chapterIsOneshot,
+        },
+        pageUrls: buildChapterPageUrls({
+          pages: chapterRow.chapterPages,
+          pagesPrefix: chapterRow.chapterPagesPrefix,
+          pagesExt: chapterRow.chapterPagesExt,
+          pagesFilePrefix: chapterRow.chapterPagesFilePrefix,
+        }),
+        prevChapter: prevChapter ? mapChapterNavigation(prevChapter) : null,
+        nextChapter: nextChapter ? mapChapterNavigation(nextChapter) : null,
       },
-      chapter: {
-        id: chapterRow.chapterId,
-        number: parseNumericValue(chapterRow.chapterNumber) ?? 0,
-        numberText: formatNumericText(chapterRow.chapterNumber),
-        title: chapterRow.chapterTitle,
-        date: toIsoDateString(chapterRow.chapterDate),
-        pages: chapterRow.chapterPages,
-        groupName: chapterRow.chapterGroupName,
-        isOneshot: chapterRow.chapterIsOneshot,
-      },
-      pageUrls: buildChapterPageUrls({
-        pages: chapterRow.chapterPages,
-        pagesPrefix: chapterRow.chapterPagesPrefix,
-        pagesExt: chapterRow.chapterPagesExt,
-        pagesFilePrefix: chapterRow.chapterPagesFilePrefix,
-      }),
-      prevChapter: prevChapter ? mapChapterNavigation(prevChapter) : null,
-      nextChapter: nextChapter ? mapChapterNavigation(nextChapter) : null,
     };
   }
 }

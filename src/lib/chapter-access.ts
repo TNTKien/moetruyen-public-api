@@ -4,30 +4,23 @@ export interface PublicChapterAccessInput {
   mangaOneshotLocked: boolean;
 }
 
-export const isPublicChapterAccessible = ({
+export type PublicChapterAccess = "public" | "password_required" | "locked";
+
+export const getPublicChapterAccess = ({
   chapterPasswordHash,
   chapterIsOneshot,
   mangaOneshotLocked,
-}: PublicChapterAccessInput): boolean => {
+}: PublicChapterAccessInput): PublicChapterAccess => {
   if (chapterPasswordHash) {
-    return false;
+    return "password_required";
   }
 
   if (mangaOneshotLocked && chapterIsOneshot) {
-    return false;
+    return "locked";
   }
 
-  return true;
+  return "public";
 };
 
-export const filterAccessibleChapters = <T extends { passwordHash: string | null | undefined; isOneshot: boolean }>(
-  chapterItems: T[],
-  mangaOneshotLocked: boolean,
-): T[] =>
-  chapterItems.filter((chapterItem) =>
-    isPublicChapterAccessible({
-      chapterPasswordHash: chapterItem.passwordHash,
-      chapterIsOneshot: chapterItem.isOneshot,
-      mangaOneshotLocked,
-    }),
-  );
+export const isPublicChapterAccessible = (input: PublicChapterAccessInput): boolean =>
+  getPublicChapterAccess(input) === "public";

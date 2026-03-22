@@ -2,6 +2,8 @@ import { z } from "zod";
 
 import { mangaIdParamsSchema } from "./manga.js";
 
+export const chapterAccessSchema = z.enum(["public", "password_required", "locked"]);
+
 export const chapterItemSchema = z.object({
   id: z.number().int().positive(),
   number: z.number(),
@@ -9,6 +11,7 @@ export const chapterItemSchema = z.object({
   title: z.string().nullable(),
   date: z.string().datetime().nullable(),
   pages: z.number().int().nonnegative().nullable(),
+  access: chapterAccessSchema,
 });
 
 export const mangaChapterListSchema = z.object({

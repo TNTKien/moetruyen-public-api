@@ -13,7 +13,7 @@ interface ResponseOptions {
   };
 }
 
-export type ApiStatusCode = 200 | 400 | 404 | 408 | 409 | 429 | 500 | 501 | 503;
+export type ApiStatusCode = 200 | 400 | 403 | 404 | 408 | 409 | 429 | 500 | 501 | 503;
 
 const buildMeta = (c: Context<AppBindings>, pagination?: ResponseOptions["pagination"]) => ({
   requestId: c.get("requestId"),
