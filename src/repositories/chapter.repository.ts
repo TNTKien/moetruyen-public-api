@@ -14,7 +14,7 @@ const mapChapterNavigation = (chapter: { id: number; number: string; title: stri
 });
 
 export class ChapterRepository {
-  async listPublicChaptersByMangaSlug(slug: string): Promise<MangaChapterList | null> {
+  async listPublicChaptersByMangaId(mangaId: number): Promise<MangaChapterList | null> {
     const mangaItem = await db
       .select({
         id: manga.id,
@@ -22,7 +22,7 @@ export class ChapterRepository {
         title: manga.title,
       })
       .from(manga)
-      .where(and(eq(manga.slug, slug), eq(manga.isHidden, 0)))
+      .where(and(eq(manga.id, mangaId), eq(manga.isHidden, 0)))
       .limit(1)
       .then((rows) => rows[0] ?? null);
 

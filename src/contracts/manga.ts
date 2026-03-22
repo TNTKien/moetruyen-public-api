@@ -37,12 +37,12 @@ export const mangaDetailSchema = mangaListItemSchema.extend({
   groupName: z.string().nullable(),
 });
 
-export const mangaSlugParamsSchema = z.object({
-  slug: z.string().trim().min(1).max(200),
+export const mangaIdParamsSchema = z.object({
+  id: z.coerce.number().int().positive(),
 });
 
 export type GenreSummary = z.infer<typeof genreSummarySchema>;
 export type MangaListQuery = z.infer<typeof mangaListQuerySchema>;
 export type MangaListItem = z.infer<typeof mangaListItemSchema>;
 export type MangaDetail = z.infer<typeof mangaDetailSchema>;
-export type MangaSlugParams = z.infer<typeof mangaSlugParamsSchema>;
+export type MangaIdParams = z.infer<typeof mangaIdParamsSchema>;

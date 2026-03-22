@@ -191,7 +191,7 @@ export class MangaRepository {
     };
   }
 
-  async findPublicMangaBySlug(slug: string): Promise<MangaDetail | null> {
+  async findPublicMangaById(id: number): Promise<MangaDetail | null> {
     const item = await db
       .select({
         id: manga.id,
@@ -209,7 +209,7 @@ export class MangaRepository {
       })
       .from(manga)
       .leftJoin(chapterStats, eq(chapterStats.mangaId, manga.id))
-      .where(and(eq(manga.slug, slug), eq(manga.isHidden, 0)))
+      .where(and(eq(manga.id, id), eq(manga.isHidden, 0)))
       .limit(1)
       .then((rows) => rows[0] ?? null);
 

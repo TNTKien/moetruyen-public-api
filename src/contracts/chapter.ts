@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { mangaSlugParamsSchema } from "./manga.js";
+import { mangaIdParamsSchema } from "./manga.js";
 
 export const chapterItemSchema = z.object({
   id: z.number().int().positive(),
@@ -48,7 +48,7 @@ export const chapterReaderSchema = z.object({
   nextChapter: chapterReaderNavSchema.nullable(),
 });
 
-export const chapterListParamsSchema = mangaSlugParamsSchema;
+export const chapterListParamsSchema = mangaIdParamsSchema;
 
 export type ChapterItem = z.infer<typeof chapterItemSchema>;
 export type MangaChapterList = z.infer<typeof mangaChapterListSchema>;

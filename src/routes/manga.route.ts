@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { errorEnvelopeSchema, successEnvelopeSchema } from "../contracts/common.js";
 import { mangaChapterListSchema } from "../contracts/chapter.js";
-import { mangaDetailSchema, mangaListItemSchema, mangaListQuerySchema, mangaSlugParamsSchema } from "../contracts/manga.js";
+import { mangaDetailSchema, mangaIdParamsSchema, mangaListItemSchema, mangaListQuerySchema } from "../contracts/manga.js";
 import { AppError } from "../lib/errors.js";
 import { CACHE_CONTROL } from "../lib/cache.js";
 import { getPaginationMeta } from "../lib/pagination.js";
@@ -55,11 +55,11 @@ mangaRoute.get(
 );
 
 mangaRoute.get(
-  "/manga/:slug",
+  "/manga/:id",
   describeRoute({
     tags: ["Manga"],
     summary: "Get manga detail",
-    description: "Returns the public manga detail payload for a slug.",
+    description: "Returns the public manga detail payload for a manga id.",
     responses: {
       200: {
         description: "Manga detail",
@@ -79,10 +79,10 @@ mangaRoute.get(
       },
     },
   }),
-  validator("param", mangaSlugParamsSchema, validationHook),
+  validator("param", mangaIdParamsSchema, validationHook),
   async (c) => {
-    const { slug } = c.req.valid("param");
-    const item = await mangaService.getPublicMangaBySlug(slug);
+    const { id } = c.req.valid("param");
+    const item = await mangaService.getPublicMangaById(id);
 
     if (!item) {
       throw new AppError({
@@ -99,11 +99,11 @@ mangaRoute.get(
 );
 
 mangaRoute.get(
-  "/manga/:slug/chapters",
+  "/manga/:id/chapters",
   describeRoute({
     tags: ["Manga"],
     summary: "List public manga chapters",
-    description: "Returns public chapter metadata for a manga slug ordered by latest chapter first.",
+    description: "Returns public chapter metadata for a manga id ordered by latest chapter first.",
     responses: {
       200: {
         description: "Manga chapters",
@@ -123,10 +123,10 @@ mangaRoute.get(
       },
     },
   }),
-  validator("param", mangaSlugParamsSchema, validationHook),
+  validator("param", mangaIdParamsSchema, validationHook),
   async (c) => {
-    const { slug } = c.req.valid("param");
-    const item = await chapterService.listPublicChaptersByMangaSlug(slug);
+    const { id } = c.req.valid("param");
+    const item = await chapterService.listPublicChaptersByMangaId(id);
 
     if (!item) {
       throw new AppError({

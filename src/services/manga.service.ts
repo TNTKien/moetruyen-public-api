@@ -6,7 +6,7 @@ export const mangaService = {
     return mangaRepository.listPublicManga(query);
   },
 
-  getPublicMangaBySlug(slug: string): Promise<MangaDetail | null> {
-    return mangaRepository.findPublicMangaBySlug(slug);
+  getPublicMangaById(id: number): Promise<MangaDetail | null> {
+    return mangaRepository.findPublicMangaById(id);
   },
 };
