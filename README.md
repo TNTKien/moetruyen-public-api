@@ -1,6 +1,7 @@
 # Moetruyen Public API
 
-Public read-only REST API for [MoeTruyen](https://moetruyen.net/). 
+Public read-only REST API for [MoeTruyen](https://github.com/dex593/web1).
+
 Full featured available soon...
 
 Try it: [moe.suicaodex.com](https://moe.suicaodex.com/docs#tag/system)
