@@ -30,6 +30,7 @@ const originals = {
   listPublicTeamMangaByTeamId: teamService.listPublicTeamMangaByTeamId,
   listPublicTeamMembersByTeamId: teamService.listPublicTeamMembersByTeamId,
   getPublicUserByUsername: userService.getPublicUserByUsername,
+  listPublicUserCommentsByUsername: userService.listPublicUserCommentsByUsername,
 };
 
 afterEach(() => {
@@ -43,6 +44,7 @@ afterEach(() => {
   teamService.listPublicTeamMangaByTeamId = originals.listPublicTeamMangaByTeamId;
   teamService.listPublicTeamMembersByTeamId = originals.listPublicTeamMembersByTeamId;
   userService.getPublicUserByUsername = originals.getPublicUserByUsername;
+  userService.listPublicUserCommentsByUsername = originals.listPublicUserCommentsByUsername;
 });
 
 describe("public api routes", () => {
@@ -475,6 +477,62 @@ describe("public api routes", () => {
       team: {
         slug: "hust-electro-neko-team",
       },
+    });
+  });
+
+  it("returns paginated public user comments", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    userService.listPublicUserCommentsByUsername = async (_username, query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return {
+        items: [
+          {
+            id: 88,
+            kind: "manga_comment",
+            targetTitle: "Sample Manga",
+            contextLabel: "Chapter 3.000 - Chapter 3",
+            contentPreview: "Nice chapter",
+            commentPath: "/manga/sample-manga/chapters/3.000#comment-88",
+            createdAt: "2026-03-22T10:47:03.891Z",
+          },
+        ],
+        total: 5,
+      };
+    };
+
+    const response = await app.request("http://local/v1/users/hust_electro_neko/comments?limit=1");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.userComments);
+    expect(receivedQuery).toMatchObject({
+      page: 1,
+      limit: 1,
+    });
+    expect(body.meta.pagination).toEqual({
+      page: 1,
+      limit: 1,
+      total: 5,
+      totalPages: 5,
+    });
+    expect(body.data[0]).toMatchObject({
+      kind: "manga_comment",
+      targetTitle: "Sample Manga",
+    });
+  });
+
+  it("returns 404 when public user comments are missing", async () => {
+    userService.listPublicUserCommentsByUsername = async () => null;
+
+    const response = await app.request("http://local/v1/users/missing_user/comments");
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error).toMatchObject({
+      code: "USER_NOT_FOUND",
+      message: "User not found",
     });
   });
 
