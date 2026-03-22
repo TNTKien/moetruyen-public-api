@@ -50,6 +50,17 @@ describe("public api routes", () => {
     });
   });
 
+  it("applies CORS headers for allowed origins", async () => {
+    const response = await app.request("http://local/health", {
+      headers: {
+        Origin: "https://example.com",
+      },
+    });
+
+    expect(response.headers.get("access-control-allow-origin")).toBe("https://example.com");
+    expect(response.headers.get("access-control-expose-headers")).toContain("X-Request-Id");
+  });
+
   it("returns the OpenAPI document", async () => {
     const response = await app.request("http://local/openapi.json");
     const body = await response.json();
