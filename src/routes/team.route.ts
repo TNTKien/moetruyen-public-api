@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { errorEnvelopeSchema, successEnvelopeSchema } from "../contracts/common.js";
 import { mangaListItemSchema } from "../contracts/manga.js";
-import { teamIdParamsSchema, teamMangaListQuerySchema, teamMemberSchema, teamSummarySchema } from "../contracts/team.js";
+import { teamIdParamsSchema, teamMangaListQuerySchema, teamMemberSchema, teamSummarySchema, teamUpdateItemSchema, teamUpdatesQuerySchema } from "../contracts/team.js";
 import { CACHE_CONTROL } from "../lib/cache.js";
 import { AppError } from "../lib/errors.js";
 import { getPaginationMeta } from "../lib/pagination.js";
@@ -64,6 +64,62 @@ teamRoute.get(
     c.header("Cache-Control", CACHE_CONTROL.teamDetail);
 
     return jsonSuccess(c, item);
+  },
+);
+
+teamRoute.get(
+  "/teams/:id/updates",
+  describeRoute({
+    tags: ["Teams"],
+    summary: "List public team updates",
+    description: "Returns paginated recent chapter updates associated with an approved translation team.",
+    responses: {
+      200: {
+        description: "Paginated team update list",
+        content: {
+          "application/json": {
+            schema: resolver(successEnvelopeSchema(z.array(teamUpdateItemSchema))),
+          },
+        },
+      },
+      400: {
+        description: "Invalid request parameters",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
+      404: {
+        description: "Team not found",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
+    },
+  }),
+  validator("param", teamIdParamsSchema, validationHook),
+  validator("query", teamUpdatesQuerySchema, validationHook),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const query = c.req.valid("query");
+    const result = await teamService.listPublicTeamUpdatesByTeamId(id, query);
+
+    if (!result) {
+      throw new AppError({
+        code: "TEAM_NOT_FOUND",
+        message: "Team not found",
+        status: 404,
+      });
+    }
+
+    c.header("Cache-Control", CACHE_CONTROL.teamUpdates);
+
+    return jsonSuccess(c, result.items, {
+      pagination: getPaginationMeta({ page: query.page, limit: query.limit }, result.total),
+    });
   },
 );
 

@@ -27,6 +27,7 @@ const originals = {
   listPublicGenres: genreService.listPublicGenres,
   searchPublicManga: searchService.searchPublicManga,
   getPublicTeamById: teamService.getPublicTeamById,
+  listPublicTeamUpdatesByTeamId: teamService.listPublicTeamUpdatesByTeamId,
   listPublicTeamMangaByTeamId: teamService.listPublicTeamMangaByTeamId,
   listPublicTeamMembersByTeamId: teamService.listPublicTeamMembersByTeamId,
   getPublicUserByUsername: userService.getPublicUserByUsername,
@@ -41,6 +42,7 @@ afterEach(() => {
   genreService.listPublicGenres = originals.listPublicGenres;
   searchService.searchPublicManga = originals.searchPublicManga;
   teamService.getPublicTeamById = originals.getPublicTeamById;
+  teamService.listPublicTeamUpdatesByTeamId = originals.listPublicTeamUpdatesByTeamId;
   teamService.listPublicTeamMangaByTeamId = originals.listPublicTeamMangaByTeamId;
   teamService.listPublicTeamMembersByTeamId = originals.listPublicTeamMembersByTeamId;
   userService.getPublicUserByUsername = originals.getPublicUserByUsername;
@@ -383,6 +385,75 @@ describe("public api routes", () => {
     expect(body.data[0]).toMatchObject({
       username: "hust_electro_neko",
       role: "leader",
+    });
+  });
+
+  it("returns paginated public team updates", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    teamService.listPublicTeamUpdatesByTeamId = async (_id, query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return {
+        items: [
+          {
+            manga: {
+              id: 77,
+              slug: "sample-team-manga",
+              title: "Sample Team Manga",
+            },
+            chapter: {
+              id: 901,
+              number: 21,
+              numberText: "21.000",
+              title: "Chapter 21",
+              date: "2026-03-22T10:47:03.891Z",
+              pages: 18,
+              access: "password_required",
+              isOneshot: false,
+              groupName: "HUST Electro Neko Team",
+            },
+          },
+        ],
+        total: 4,
+      };
+    };
+
+    const response = await app.request("http://local/v1/teams/16/updates?limit=1");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.teamUpdates);
+    expect(receivedQuery).toMatchObject({
+      page: 1,
+      limit: 1,
+    });
+    expect(body.meta.pagination).toEqual({
+      page: 1,
+      limit: 1,
+      total: 4,
+      totalPages: 4,
+    });
+    expect(body.data[0]).toMatchObject({
+      manga: {
+        slug: "sample-team-manga",
+      },
+      chapter: {
+        access: "password_required",
+      },
+    });
+  });
+
+  it("returns 404 when public team updates are missing", async () => {
+    teamService.listPublicTeamUpdatesByTeamId = async () => null;
+
+    const response = await app.request("http://local/v1/teams/999999/updates");
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error).toMatchObject({
+      code: "TEAM_NOT_FOUND",
+      message: "Team not found",
     });
   });
 
