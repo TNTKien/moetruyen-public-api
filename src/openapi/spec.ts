@@ -12,7 +12,7 @@ export const mountOpenApiSpec = (app: Hono<AppBindings>) => {
         info: {
           title: "Moetruyen Public API",
           version: "0.1.0",
-          description: "Read-only public REST API for manga, chapters, genres, and search.",
+          description: "Read-only public REST API for manga, chapters, genres, search, teams, and users.",
         },
         servers: [
           {
@@ -26,6 +26,8 @@ export const mountOpenApiSpec = (app: Hono<AppBindings>) => {
           { name: "Chapters", description: "Public chapter reader resources" },
           { name: "Genres", description: "Public genre resources" },
           { name: "Search", description: "Public search resources" },
+          { name: "Teams", description: "Public translation team resources" },
+          { name: "Users", description: "Public user profile resources" },
         ],
       },
     }),
