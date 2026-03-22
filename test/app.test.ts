@@ -196,7 +196,7 @@ describe("public api routes", () => {
       nextChapter: null,
     });
 
-    const response = await app.request("http://local/v1/manga/sample-manga/chapters/99/pages");
+    const response = await app.request("http://local/v1/chapters/99");
     const body = await response.json();
 
     expect(response.status).toBe(200);
@@ -208,7 +208,7 @@ describe("public api routes", () => {
   it("returns 404 when chapter reader payload is missing", async () => {
     chapterService.getPublicChapterReaderById = async () => null;
 
-    const response = await app.request("http://local/v1/manga/sample-manga/chapters/99/pages");
+    const response = await app.request("http://local/v1/chapters/99");
     const body = await response.json();
 
     expect(response.status).toBe(404);
