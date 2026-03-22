@@ -11,6 +11,8 @@ const envSchema = z.object({
   DATABASE_QUERY_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
   API_BASE_URL: z.string().url().default("http://localhost:8787"),
   PUBLIC_SITE_URL: z.string().url().default("https://example.com"),
+  CHAPTER_CDN_BASE_URL: z.string().url().default("https://i.moetruyen.net"),
+  COVER_BASE_URL: z.string().url().default("https://moetruyen.net"),
   ALLOWED_ORIGINS: z.string().default("https://example.com"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 });
