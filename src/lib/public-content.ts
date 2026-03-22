@@ -107,6 +107,13 @@ export const buildChapterAssetUrl = (path: string | null | undefined): string | 
   return buildAbsoluteUrl(path, env.CHAPTER_CDN_BASE_URL);
 };
 
+export interface BuildChapterPageUrlsOptions {
+  pages: number | null | undefined;
+  pagesPrefix: string | null | undefined;
+  pagesExt: string | null | undefined;
+  pagesFilePrefix?: string | null | undefined;
+}
+
 export const normalizeChapterPageFilePrefix = (value: string | null | undefined): string => {
   if (!value) {
     return "";
@@ -119,7 +126,7 @@ export const buildChapterPageFileName = (options: {
   pageNumber: number;
   padLength: number;
   extension: string;
-  pageFilePrefix?: string | null;
+  pageFilePrefix?: string | null | undefined;
 }): string => {
   const safePageNumber = Math.max(1, Math.trunc(options.pageNumber));
   const safePadLength = Math.max(1, Math.trunc(options.padLength));
@@ -133,4 +140,30 @@ export const buildChapterPageFileName = (options: {
   const suffix = normalizeChapterPageFilePrefix(options.pageFilePrefix);
 
   return suffix ? `${baseName}_${suffix}.${safeExtension}` : `${baseName}.${safeExtension}`;
+};
+
+export const buildChapterPageUrls = (options: BuildChapterPageUrlsOptions): string[] => {
+  if (!options.pagesPrefix || !options.pagesExt) {
+    return [];
+  }
+
+  const totalPages = options.pages ?? 0;
+
+  if (!Number.isInteger(totalPages) || totalPages <= 0) {
+    return [];
+  }
+
+  const padLength = Math.max(3, Math.min(6, String(totalPages).length));
+  const normalizedPrefix = options.pagesPrefix.replace(/\/+$/, "");
+
+  return Array.from({ length: totalPages }, (_, index) => {
+    const fileName = buildChapterPageFileName({
+      pageNumber: index + 1,
+      padLength,
+      extension: options.pagesExt ?? "",
+      pageFilePrefix: options.pagesFilePrefix,
+    });
+
+    return buildChapterAssetUrl(`${normalizedPrefix}/${fileName}`) ?? "";
+  }).filter((item) => item.length > 0);
 };
