@@ -102,6 +102,13 @@ bun run build
 
 GitHub Actions CI runs the same verification steps automatically on `push`, `pull_request`, and manual `workflow_dispatch`.
 
+## Runtime hardening
+
+- CORS is enabled with `hono/cors` and uses the comma-separated `ALLOWED_ORIGINS` env var.
+- Request logging is enabled for every request and includes `requestId`, method, path, status, and duration.
+- PostgreSQL/Drizzle errors are normalized into the API error envelope before reaching clients.
+- The PostgreSQL pool also logs background idle-client failures via `pool.on("error")`.
+
 ## Schema sync
 
 This repo does not own the main database migrations. To refresh the introspected schema from the live database:
@@ -152,6 +159,7 @@ Validation and application errors follow this shape:
 ## Test coverage today
 
 - Health route response
+- CORS header behavior for allowed origins
 - OpenAPI document response
 - Scalar docs response
 - Manga list success path
@@ -161,8 +169,9 @@ Validation and application errors follow this shape:
 - Genre list success path
 - Search validation and success paths
 - Public helper behavior for search normalization and asset URL building
+- Database error normalization for conflict and connection-failure cases
 
 ## Next likely work
 
-1. Tighten production hardening for CORS, rate limiting, and request logging.
+1. Add rate limiting and optional monitoring integration.
 2. Add more data edge-case coverage for password-protected or locked chapters.
