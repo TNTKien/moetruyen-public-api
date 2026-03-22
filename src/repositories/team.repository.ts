@@ -1,7 +1,9 @@
-import type { TeamMangaListQuery, TeamMember, TeamSummary } from "../contracts/team.js";
+import type { TeamMangaListQuery, TeamMember, TeamSummary, TeamUpdateItem, TeamUpdatesQuery } from "../contracts/team.js";
 import { env } from "../config/env.js";
 import { mangaRepository } from "./manga.repository.js";
 import { pool } from "../db/client.js";
+import { getPublicChapterAccess } from "../lib/chapter-access.js";
+import { formatNumericText, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
 
 interface TeamRow {
   team_id: number;
@@ -31,6 +33,25 @@ interface TeamMemberRow {
   display_name: string | null;
   avatar_url: string | null;
   role: string;
+}
+
+interface TeamUpdateCountRow {
+  total: string | number;
+}
+
+interface TeamUpdateRow {
+  manga_id: number;
+  manga_slug: string;
+  manga_title: string;
+  manga_oneshot_locked: boolean;
+  chapter_id: number;
+  chapter_number: string | number;
+  chapter_title: string | null;
+  chapter_date: string | null;
+  chapter_pages: number | null;
+  chapter_is_oneshot: boolean;
+  chapter_group_name: string | null;
+  chapter_password_hash: string | null;
 }
 
 const buildRoleLabel = (role: string): string => (role.trim().toLowerCase() === "leader" ? "Leader" : "Member");
@@ -63,6 +84,29 @@ const toNonNegativeInt = (value: string | number | null | undefined): number => 
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0;
 };
 
+const mapTeamUpdateItem = (row: TeamUpdateRow): TeamUpdateItem => ({
+  manga: {
+    id: row.manga_id,
+    slug: row.manga_slug,
+    title: row.manga_title,
+  },
+  chapter: {
+    id: row.chapter_id,
+    number: parseNumericValue(row.chapter_number) ?? 0,
+    numberText: formatNumericText(row.chapter_number),
+    title: normalizeOptionalText(row.chapter_title),
+    date: toIsoDateString(row.chapter_date),
+    pages: row.chapter_pages,
+    access: getPublicChapterAccess({
+      chapterPasswordHash: row.chapter_password_hash,
+      chapterIsOneshot: row.chapter_is_oneshot,
+      mangaOneshotLocked: row.manga_oneshot_locked,
+    }),
+    isOneshot: row.chapter_is_oneshot,
+    groupName: normalizeOptionalText(row.chapter_group_name),
+  },
+});
+
 const buildTeamGroupNameListExpr = (columnSql: string) =>
   `replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(lower(trim(COALESCE(${columnSql}, ''))), ' / ', ','), '/', ','), ' & ', ','), '&', ','), ' + ', ','), '+', ','), ';', ','), '|', ','), ', ', ','), ' ,', ',')`;
 
@@ -77,6 +121,8 @@ const buildTeamGroupNameMatchSql = (columnSql: string) => {
     )
   `;
 };
+
+const buildEffectiveChapterGroupSql = () => `COALESCE(NULLIF(c.group_name, ''), m.group_name)`;
 
 export class TeamRepository {
   private async findApprovedTeamRowById(id: number): Promise<TeamRow | null> {
@@ -213,6 +259,69 @@ export class TeamRepository {
     }
 
     return mangaRepository.listPublicMangaByGroupName(team.team_name, query);
+  }
+
+  async listPublicTeamUpdatesByTeamId(id: number, query: TeamUpdatesQuery): Promise<{ items: TeamUpdateItem[]; total: number } | null> {
+    const team = await this.findApprovedTeamRowById(id);
+
+    if (!team) {
+      return null;
+    }
+
+    const safeTeamName = team.team_name.trim();
+
+    if (!safeTeamName) {
+      return {
+        items: [],
+        total: 0,
+      };
+    }
+
+    const offset = (query.page - 1) * query.limit;
+    const effectiveGroupSql = buildEffectiveChapterGroupSql();
+
+    const [countResult, rowsResult] = await Promise.all([
+      pool.query<TeamUpdateCountRow>(
+        `
+          SELECT COUNT(*) AS total
+          FROM chapters c
+          JOIN manga m ON m.id = c.manga_id
+          WHERE COALESCE(m.is_hidden, 0) = 0
+            AND ${buildTeamGroupNameMatchSql(effectiveGroupSql)}
+        `,
+        [safeTeamName, safeTeamName, safeTeamName],
+      ),
+      pool.query<TeamUpdateRow>(
+        `
+          SELECT
+            m.id AS manga_id,
+            m.slug AS manga_slug,
+            m.title AS manga_title,
+            COALESCE(m.oneshot_locked, false) AS manga_oneshot_locked,
+            c.id AS chapter_id,
+            c.number AS chapter_number,
+            c.title AS chapter_title,
+            c.date AS chapter_date,
+            c.pages AS chapter_pages,
+            COALESCE(c.is_oneshot, false) AS chapter_is_oneshot,
+            c.group_name AS chapter_group_name,
+            c.password_hash AS chapter_password_hash
+          FROM chapters c
+          JOIN manga m ON m.id = c.manga_id
+          WHERE COALESCE(m.is_hidden, 0) = 0
+            AND ${buildTeamGroupNameMatchSql(effectiveGroupSql)}
+          ORDER BY c.id DESC
+          LIMIT $4
+          OFFSET $5
+        `,
+        [safeTeamName, safeTeamName, safeTeamName, query.limit, offset],
+      ),
+    ]);
+
+    return {
+      items: rowsResult.rows.map(mapTeamUpdateItem),
+      total: toNonNegativeInt(countResult.rows[0]?.total),
+    };
   }
 }
 
