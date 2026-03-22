@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { serveStatic } from "@hono/node-server/serve-static";
 
 import { allowedOrigins } from "./config/env.js";
 import { normalizeDbError } from "./lib/db-errors.js";
@@ -36,6 +37,10 @@ app.use("*", requestLoggerMiddleware);
 if (globalRateLimitMiddleware) {
   app.use("*", globalRateLimitMiddleware);
 }
+
+app.use("/favicon.ico", serveStatic({ path: "./favicon.ico" }));
+
+app.get("/", (c) => c.redirect("/docs", 302));
 
 app.route("/", healthRoute);
 app.route("/v1", mangaRoute);
