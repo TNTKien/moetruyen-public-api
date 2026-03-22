@@ -161,6 +161,16 @@ describe("public api routes", () => {
           title: "Chapter 3",
           date: "2026-03-22T10:47:03.891Z",
           pages: 18,
+          access: "public",
+        },
+        {
+          id: 100,
+          number: 4,
+          numberText: "4.000",
+          title: "Chapter 4",
+          date: "2026-03-22T10:47:03.891Z",
+          pages: 20,
+          access: "password_required",
         },
       ],
     });
@@ -174,37 +184,47 @@ describe("public api routes", () => {
       id: 99,
       number: 3,
       title: "Chapter 3",
+      access: "public",
+    });
+    expect(body.data.chapters[1]).toMatchObject({
+      id: 100,
+      access: "password_required",
     });
   });
 
   it("returns chapter reader payloads", async () => {
     chapterService.getPublicChapterReaderById = async () => ({
-      manga: {
-        id: 1,
-        slug: "sample-manga",
-        title: "Sample Manga",
+      kind: "ok",
+      data: {
+        manga: {
+          id: 1,
+          slug: "sample-manga",
+          title: "Sample Manga",
+        },
+        chapter: {
+          id: 99,
+          number: 3,
+          numberText: "3.000",
+          title: "Chapter 3",
+          date: "2026-03-22T10:47:03.891Z",
+          pages: 2,
+          access: "public",
+          groupName: "Test Group",
+          isOneshot: false,
+        },
+        pageUrls: [
+          "https://i.moetruyen.net/chapters/manga-1/ch-3/001_abcde.webp",
+          "https://i.moetruyen.net/chapters/manga-1/ch-3/002_abcde.webp",
+        ],
+        prevChapter: {
+          id: 98,
+          number: 2,
+          numberText: "2.000",
+          title: "Chapter 2",
+          access: "password_required",
+        },
+        nextChapter: null,
       },
-      chapter: {
-        id: 99,
-        number: 3,
-        numberText: "3.000",
-        title: "Chapter 3",
-        date: "2026-03-22T10:47:03.891Z",
-        pages: 2,
-        groupName: "Test Group",
-        isOneshot: false,
-      },
-      pageUrls: [
-        "https://i.moetruyen.net/chapters/manga-1/ch-3/001_abcde.webp",
-        "https://i.moetruyen.net/chapters/manga-1/ch-3/002_abcde.webp",
-      ],
-      prevChapter: {
-        id: 98,
-        number: 2,
-        numberText: "2.000",
-        title: "Chapter 2",
-      },
-      nextChapter: null,
     });
 
     const response = await app.request("http://local/v1/chapters/99");
@@ -212,12 +232,12 @@ describe("public api routes", () => {
 
     expect(response.status).toBe(200);
     expect(body.data.pageUrls).toHaveLength(2);
-    expect(body.data.prevChapter).toMatchObject({ id: 98, number: 2 });
-    expect(body.data.chapter).toMatchObject({ id: 99, groupName: "Test Group" });
+    expect(body.data.prevChapter).toMatchObject({ id: 98, number: 2, access: "password_required" });
+    expect(body.data.chapter).toMatchObject({ id: 99, groupName: "Test Group", access: "public" });
   });
 
   it("returns 404 when chapter reader payload is missing", async () => {
-    chapterService.getPublicChapterReaderById = async () => null;
+    chapterService.getPublicChapterReaderById = async () => ({ kind: "not_found" });
 
     const response = await app.request("http://local/v1/chapters/99");
     const body = await response.json();
@@ -226,6 +246,38 @@ describe("public api routes", () => {
     expect(body.error).toMatchObject({
       code: "CHAPTER_NOT_FOUND",
       message: "Chapter not found",
+    });
+  });
+
+  it("returns 403 when a chapter requires a password", async () => {
+    chapterService.getPublicChapterReaderById = async () => ({
+      kind: "forbidden",
+      reason: "password_required",
+    });
+
+    const response = await app.request("http://local/v1/chapters/99");
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error).toMatchObject({
+      code: "PASSWORD_REQUIRED",
+      message: "Password required to access this chapter",
+    });
+  });
+
+  it("returns 403 when a chapter is locked", async () => {
+    chapterService.getPublicChapterReaderById = async () => ({
+      kind: "forbidden",
+      reason: "locked",
+    });
+
+    const response = await app.request("http://local/v1/chapters/99");
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error).toMatchObject({
+      code: "CHAPTER_LOCKED",
+      message: "Chapter is locked",
     });
   });
 
