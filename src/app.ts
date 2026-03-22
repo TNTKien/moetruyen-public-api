@@ -1,6 +1,10 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 
+import { allowedOrigins } from "./config/env.js";
+import { normalizeDbError } from "./lib/db-errors.js";
 import { isAppError } from "./lib/errors.js";
+import { logger, requestLoggerMiddleware } from "./lib/logger.js";
 import { requestIdMiddleware, type AppBindings } from "./lib/request-id.js";
 import { jsonError } from "./lib/response.js";
 import { mountOpenApiSpec } from "./openapi/spec.js";
@@ -14,6 +18,16 @@ import { searchRoute } from "./routes/search.route.js";
 export const app = new Hono<AppBindings>();
 
 app.use("*", requestIdMiddleware);
+app.use(
+  "*",
+  cors({
+    origin: allowedOrigins,
+    allowMethods: ["GET", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Request-Id"],
+    exposeHeaders: ["X-Request-Id"],
+  }),
+);
+app.use("*", requestLoggerMiddleware);
 
 app.route("/", healthRoute);
 app.route("/v1", mangaRoute);
@@ -48,7 +62,35 @@ app.onError((error, c) => {
     );
   }
 
-  console.error(error);
+  const databaseError = normalizeDbError(error);
+
+  if (databaseError) {
+    logger.error("db_request_error", {
+      requestId: c.get("requestId"),
+      method: c.req.method,
+      path: c.req.path,
+      code: databaseError.code,
+      status: databaseError.status,
+      details: databaseError.details,
+    });
+
+    return jsonError(
+      c,
+      {
+        code: databaseError.code,
+        message: databaseError.message,
+        ...(databaseError.details ? { details: databaseError.details } : {}),
+      },
+      databaseError.status,
+    );
+  }
+
+  logger.error("unhandled_request_error", {
+    requestId: c.get("requestId"),
+    method: c.req.method,
+    path: c.req.path,
+    error: error instanceof Error ? error.message : String(error),
+  });
 
   return jsonError(
     c,

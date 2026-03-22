@@ -24,3 +24,7 @@ if (!parsedEnv.success) {
 }
 
 export const env = parsedEnv.data;
+
+export const allowedOrigins = env.ALLOWED_ORIGINS.split(",")
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
