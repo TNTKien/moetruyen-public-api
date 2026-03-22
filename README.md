@@ -63,6 +63,13 @@ Public read-only REST API for MoeTruyen, extracted into a standalone repository.
 | `COVER_BASE_URL` | yes | Base URL used to build manga cover URLs |
 | `CHAPTER_CDN_BASE_URL` | yes | Base URL for chapter/page assets |
 | `ALLOWED_ORIGINS` | yes | Allowed origin list for browser clients |
+| `RATE_LIMIT_ENABLED` | no | Enables or disables rate limiting |
+| `RATE_LIMIT_WINDOW_MS` | no | Shared rate limit window in milliseconds |
+| `RATE_LIMIT_MAX` | no | Max requests per window for general endpoints |
+| `SEARCH_RATE_LIMIT_MAX` | no | Max requests per window for search endpoints |
+| `APITALLY_CLIENT_ID` | no | Enables Apitally when set |
+| `APITALLY_ENV` | no | Monitoring environment label sent to Apitally |
+| `APITALLY_REQUEST_LOGGING_ENABLED` | no | Enables Apitally request logging when monitoring is active |
 | `DATABASE_POOL_MAX` | no | Maximum PostgreSQL pool size |
 | `DATABASE_IDLE_TIMEOUT_MS` | no | Pool idle timeout |
 | `DATABASE_CONNECTION_TIMEOUT_MS` | no | PostgreSQL connect timeout |
@@ -108,6 +115,8 @@ GitHub Actions CI runs the same verification steps automatically on `push`, `pul
 - Request logging is enabled for every request and includes `requestId`, method, path, status, and duration.
 - PostgreSQL/Drizzle errors are normalized into the API error envelope before reaching clients.
 - The PostgreSQL pool also logs background idle-client failures via `pool.on("error")`.
+- Rate limiting is env-driven and uses `hono-rate-limiter`, with a stricter bucket for `/v1/search/*`.
+- Apitally integration is optional and only activates when `APITALLY_CLIENT_ID` is set.
 
 ## Schema sync
 
@@ -170,8 +179,9 @@ Validation and application errors follow this shape:
 - Search validation and success paths
 - Public helper behavior for search normalization and asset URL building
 - Database error normalization for conflict and connection-failure cases
+- Test-mode gating for rate limiting and optional monitoring setup
 
 ## Next likely work
 
-1. Add rate limiting and optional monitoring integration.
-2. Add more data edge-case coverage for password-protected or locked chapters.
+1. Add more data edge-case coverage for password-protected or locked chapters.
+2. Tune rate-limit thresholds with real traffic patterns after initial production usage.
