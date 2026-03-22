@@ -4,6 +4,7 @@ import type { ChapterReader, MangaChapterList } from "../contracts/chapter.js";
 import { db } from "../db/client.js";
 import { chapters } from "../db/schema/chapters.js";
 import { manga } from "../db/schema/manga.js";
+import { filterAccessibleChapters, isPublicChapterAccessible } from "../lib/chapter-access.js";
 import { buildChapterPageUrls, formatNumericText, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
 
 const mapChapterNavigation = (chapter: { id: number; number: string; title: string }) => ({
@@ -20,6 +21,7 @@ export class ChapterRepository {
         id: manga.id,
         slug: manga.slug,
         title: manga.title,
+        oneshotLocked: manga.oneshotLocked,
       })
       .from(manga)
       .where(and(eq(manga.id, mangaId), eq(manga.isHidden, 0)))
@@ -37,14 +39,22 @@ export class ChapterRepository {
         title: chapters.title,
         date: chapters.date,
         pages: chapters.pages,
+        passwordHash: chapters.passwordHash,
+        isOneshot: chapters.isOneshot,
       })
       .from(chapters)
       .where(eq(chapters.mangaId, mangaItem.id))
       .orderBy(desc(chapters.number), desc(chapters.id));
 
+    const accessibleChapters = filterAccessibleChapters(chapterItems, mangaItem.oneshotLocked);
+
     return {
-      manga: mangaItem,
-      chapters: chapterItems.map((chapter) => ({
+      manga: {
+        id: mangaItem.id,
+        slug: mangaItem.slug,
+        title: mangaItem.title,
+      },
+      chapters: accessibleChapters.map((chapter) => ({
         id: chapter.id,
         number: parseNumericValue(chapter.number) ?? 0,
         numberText: formatNumericText(chapter.number),
@@ -85,7 +95,13 @@ export class ChapterRepository {
       return null;
     }
 
-    if (chapterRow.chapterPasswordHash || chapterRow.oneshotLocked) {
+    if (
+      !isPublicChapterAccessible({
+        chapterPasswordHash: chapterRow.chapterPasswordHash,
+        chapterIsOneshot: chapterRow.chapterIsOneshot,
+        mangaOneshotLocked: chapterRow.oneshotLocked,
+      })
+    ) {
       return null;
     }
 
@@ -94,14 +110,19 @@ export class ChapterRepository {
         id: chapters.id,
         number: chapters.number,
         title: chapters.title,
+        passwordHash: chapters.passwordHash,
+        isOneshot: chapters.isOneshot,
       })
       .from(chapters)
       .where(eq(chapters.mangaId, chapterRow.mangaId))
       .orderBy(asc(chapters.number), asc(chapters.id));
 
-    const currentIndex = mangaChapters.findIndex((chapter) => chapter.id === chapterRow.chapterId);
-    const prevChapter = currentIndex > 0 ? mangaChapters[currentIndex - 1] : null;
-    const nextChapter = currentIndex >= 0 && currentIndex < mangaChapters.length - 1 ? mangaChapters[currentIndex + 1] : null;
+    const accessibleChapters = filterAccessibleChapters(mangaChapters, chapterRow.oneshotLocked);
+
+    const currentIndex = accessibleChapters.findIndex((chapter) => chapter.id === chapterRow.chapterId);
+    const prevChapter = currentIndex > 0 ? accessibleChapters[currentIndex - 1] : null;
+    const nextChapter =
+      currentIndex >= 0 && currentIndex < accessibleChapters.length - 1 ? accessibleChapters[currentIndex + 1] : null;
 
     return {
       manga: {
