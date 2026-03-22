@@ -67,9 +67,8 @@ Public read-only REST API for MoeTruyen, extracted into a standalone repository.
 | `CHAPTER_CDN_BASE_URL` | yes | Base URL for chapter/page assets |
 | `ALLOWED_ORIGINS` | yes | Allowed origin list for browser clients |
 | `RATE_LIMIT_ENABLED` | no | Enables or disables rate limiting |
-| `RATE_LIMIT_WINDOW_MS` | no | Shared rate limit window in milliseconds |
-| `RATE_LIMIT_MAX` | no | Max requests per window for general endpoints |
-| `SEARCH_RATE_LIMIT_MAX` | no | Max requests per window for search endpoints |
+| `RATE_LIMIT_WINDOW_MS` | no | Global rate limit window in milliseconds |
+| `RATE_LIMIT_MAX` | no | Max requests per window per client IP |
 | `APITALLY_CLIENT_ID` | no | Enables Apitally when set |
 | `APITALLY_ENV` | no | Monitoring environment label sent to Apitally |
 | `APITALLY_REQUEST_LOGGING_ENABLED` | no | Enables Apitally request logging when monitoring is active |
@@ -118,7 +117,7 @@ GitHub Actions CI runs the same verification steps automatically on `push`, `pul
 - Request logging is enabled for every request and includes `requestId`, method, path, status, and duration.
 - PostgreSQL/Drizzle errors are normalized into the API error envelope before reaching clients.
 - The PostgreSQL pool also logs background idle-client failures via `pool.on("error")`.
-- Rate limiting is env-driven and uses `hono-rate-limiter`, with a stricter bucket for `/v1/search/*`.
+- Rate limiting is env-driven and uses one global app-level limiter, defaulting to roughly `7 requests/second` per client IP.
 - Apitally integration is optional and only activates when `APITALLY_CLIENT_ID` is set.
 
 ## Schema sync
