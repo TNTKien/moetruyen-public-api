@@ -50,6 +50,22 @@ describe("public api routes", () => {
     });
   });
 
+  it("redirects the root path to docs", async () => {
+    const response = await app.request("http://local/", {
+      redirect: "manual",
+    });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("/docs");
+  });
+
+  it("serves the favicon asset", async () => {
+    const response = await app.request("http://local/favicon.ico");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/x-icon");
+  });
+
   it("applies CORS headers for allowed origins", async () => {
     const response = await app.request("http://local/health", {
       headers: {
