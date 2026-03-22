@@ -21,7 +21,7 @@ Public read-only REST API for MoeTruyen, extracted into a standalone repository.
 | `GET` | `/v1/manga` | Paginated public manga list |
 | `GET` | `/v1/manga/:slug` | Public manga detail |
 | `GET` | `/v1/manga/:slug/chapters` | Public chapter metadata for a manga |
-| `GET` | `/v1/manga/:slug/chapters/:chapterId/pages` | Public reader payload with chapter page URLs |
+| `GET` | `/v1/chapters/:id` | Public reader payload with chapter page URLs |
 | `GET` | `/v1/search/manga` | Lightweight public manga search |
 
 ## Query parameters
@@ -40,10 +40,9 @@ Public read-only REST API for MoeTruyen, extracted into a standalone repository.
 - `q`: required search text
 - `limit`: default `10`, max `20`
 
-### `GET /v1/manga/:slug/chapters/:chapterId/pages`
+### `GET /v1/chapters/:id`
 
-- `slug`: manga slug
-- `chapterId`: numeric chapter id
+- `id`: numeric chapter id
 - Response includes `manga`, `chapter`, `pageUrls`, `prevChapter`, and `nextChapter`
 
 ## Environment variables
