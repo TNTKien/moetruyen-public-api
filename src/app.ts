@@ -5,6 +5,8 @@ import { allowedOrigins } from "./config/env.js";
 import { normalizeDbError } from "./lib/db-errors.js";
 import { isAppError } from "./lib/errors.js";
 import { logger, requestLoggerMiddleware } from "./lib/logger.js";
+import { setupMonitoring } from "./lib/monitoring.js";
+import { globalRateLimitMiddleware, searchRateLimitMiddleware } from "./lib/rate-limit.js";
 import { requestIdMiddleware, type AppBindings } from "./lib/request-id.js";
 import { jsonError } from "./lib/response.js";
 import { mountOpenApiSpec } from "./openapi/spec.js";
@@ -17,6 +19,8 @@ import { searchRoute } from "./routes/search.route.js";
 
 export const app = new Hono<AppBindings>();
 
+await setupMonitoring(app);
+
 app.use("*", requestIdMiddleware);
 app.use(
   "*",
@@ -28,6 +32,14 @@ app.use(
   }),
 );
 app.use("*", requestLoggerMiddleware);
+
+if (globalRateLimitMiddleware) {
+  app.use("*", globalRateLimitMiddleware);
+}
+
+if (searchRateLimitMiddleware) {
+  app.use("/v1/search/*", searchRateLimitMiddleware);
+}
 
 app.route("/", healthRoute);
 app.route("/v1", mangaRoute);

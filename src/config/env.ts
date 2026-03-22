@@ -14,6 +14,19 @@ const envSchema = z.object({
   CHAPTER_CDN_BASE_URL: z.string().url().default("https://i.moetruyen.net"),
   COVER_BASE_URL: z.string().url().default("https://moetruyen.net"),
   ALLOWED_ORIGINS: z.string().default("https://example.com"),
+  RATE_LIMIT_ENABLED: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+  SEARCH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  APITALLY_CLIENT_ID: z.string().trim().min(1).optional(),
+  APITALLY_ENV: z.string().trim().min(1).default("dev"),
+  APITALLY_REQUEST_LOGGING_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 });
 
