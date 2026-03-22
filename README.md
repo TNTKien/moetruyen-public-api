@@ -19,8 +19,8 @@ Public read-only REST API for MoeTruyen, extracted into a standalone repository.
 | `GET` | `/docs` | Scalar API reference |
 | `GET` | `/v1/genres` | List public genres with visible manga counts |
 | `GET` | `/v1/manga` | Paginated public manga list |
-| `GET` | `/v1/manga/:slug` | Public manga detail |
-| `GET` | `/v1/manga/:slug/chapters` | Public chapter metadata for a manga |
+| `GET` | `/v1/manga/:id` | Public manga detail |
+| `GET` | `/v1/manga/:id/chapters` | Public chapter metadata for a manga |
 | `GET` | `/v1/chapters/:id` | Public reader payload with chapter page URLs |
 | `GET` | `/v1/search/manga` | Lightweight public manga search |
 
@@ -39,6 +39,14 @@ Public read-only REST API for MoeTruyen, extracted into a standalone repository.
 
 - `q`: required search text
 - `limit`: default `10`, max `20`
+
+### `GET /v1/manga/:id`
+
+- `id`: numeric manga id
+
+### `GET /v1/manga/:id/chapters`
+
+- `id`: numeric manga id
 
 ### `GET /v1/chapters/:id`
 
@@ -155,5 +163,4 @@ Validation and application errors follow this shape:
 ## Next likely work
 
 1. Add chapter page URL payloads backed by `CHAPTER_CDN_BASE_URL`.
-2. Add Docker and deployment instructions.
-3. Add CI to run `bun run test`, `bun run check`, and `bun run build` automatically.
+2. Add CI to run `bun run test`, `bun run check`, and `bun run build` automatically.
