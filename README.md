@@ -2,23 +2,38 @@
 
 Public read-only REST API for [MoeTruyen](https://github.com/dex593/web1).
 
-Full featured available soon...
-
 Try it: [moe.suicaodex.com](https://moe.suicaodex.com/docs#tag/system)
 
-## Core Endpoints
+## Public Surface
 
 Detailed API reference is available at `/docs` (Scalar) or `/openapi.json`.
 
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/health` | Service health check |
+| `GET` | `/` | Redirect to `/docs` |
+| `GET` | `/docs` | Scalar API docs |
+| `GET` | `/openapi.json` | OpenAPI document |
 | `GET` | `/v1/manga` | Paginated manga list |
 | `GET` | `/v1/manga/:id` | Manga detail |
 | `GET` | `/v1/manga/:id/chapters` | Chapter list for a manga |
 | `GET` | `/v1/chapters/:id` | Reader payload (page URLs) |
 | `GET` | `/v1/genres` | Public genre list |
 | `GET` | `/v1/search/manga` | Manga search |
+| `GET` | `/v1/teams/:id` | Public team detail |
+| `GET` | `/v1/teams/:id/members` | Approved public-facing team members |
+| `GET` | `/v1/teams/:id/manga` | Paginated manga associated with a team |
+| `GET` | `/v1/teams/:id/updates` | Paginated recent chapter updates for a team |
+| `GET` | `/v1/users/:username` | Public user profile summary |
+| `GET` | `/v1/users/:username/comments` | Paginated public-visible user comments and forum replies |
+
+## Notes
+
+- Manga and chapter detail routes use numeric `id`, not `slug`.
+- The API is read-only and only returns public-safe fields.
+- `GET /v1/manga/:id/chapters` includes protected chapters and marks each item with `access: public | password_required | locked`.
+- `GET /v1/chapters/:id` returns `403 PASSWORD_REQUIRED` for password-protected chapters and `403 CHAPTER_LOCKED` for locked oneshot chapters.
+- `GET /v1/teams/:id/updates` preserves the same public chapter access semantics in its response payload.
 
 ## Setup & Development
 
