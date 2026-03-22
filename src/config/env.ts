@@ -18,9 +18,8 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("true")
     .transform((value) => value === "true"),
-  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
-  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
-  SEARCH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(1000),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(7),
   APITALLY_CLIENT_ID: z.string().trim().min(1).optional(),
   APITALLY_ENV: z.string().trim().min(1).default("dev"),
   APITALLY_REQUEST_LOGGING_ENABLED: z

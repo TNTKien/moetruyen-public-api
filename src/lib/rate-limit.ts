@@ -50,16 +50,3 @@ export const globalRateLimitMiddleware =
         skip: (c) => c.req.method === "OPTIONS" || c.req.path === "/health" || c.req.path === "/openapi.json" || c.req.path === "/docs",
         handler: createRateLimitHandler(env.RATE_LIMIT_WINDOW_MS),
       });
-
-export const searchRateLimitMiddleware =
-  env.NODE_ENV === "test" || !env.RATE_LIMIT_ENABLED
-    ? null
-    : rateLimiter<AppBindings>({
-        windowMs: env.RATE_LIMIT_WINDOW_MS,
-        limit: env.SEARCH_RATE_LIMIT_MAX,
-        keyGenerator: getClientKey,
-        statusCode: 429,
-        standardHeaders: "draft-6",
-        skipFailedRequests: true,
-        handler: createRateLimitHandler(env.RATE_LIMIT_WINDOW_MS),
-      });
