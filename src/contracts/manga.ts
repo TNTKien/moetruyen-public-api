@@ -41,8 +41,13 @@ export const mangaIdParamsSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 
+export const mangaRandomQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(10).default(1),
+});
+
 export type GenreSummary = z.infer<typeof genreSummarySchema>;
 export type MangaListQuery = z.infer<typeof mangaListQuerySchema>;
 export type MangaListItem = z.infer<typeof mangaListItemSchema>;
 export type MangaDetail = z.infer<typeof mangaDetailSchema>;
 export type MangaIdParams = z.infer<typeof mangaIdParamsSchema>;
+export type MangaRandomQuery = z.infer<typeof mangaRandomQuerySchema>;

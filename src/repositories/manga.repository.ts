@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 
-import type { MangaDetail, MangaListItem, MangaListQuery } from "../contracts/manga.js";
+import type { MangaDetail, MangaListItem, MangaListQuery, MangaRandomQuery } from "../contracts/manga.js";
 import type { SearchMangaItem, SearchMangaQuery } from "../contracts/search.js";
 import { db } from "../db/client.js";
 import { chapters } from "../db/schema/chapters.js";
@@ -169,6 +169,41 @@ const mapBaseMangaFields = (row: {
   isOneshot: row.isOneshot,
 });
 
+const shuffleArray = <T>(items: T[]): T[] => {
+  const shuffled = [...items];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const currentItem = shuffled[index] as T;
+    shuffled[index] = shuffled[swapIndex] as T;
+    shuffled[swapIndex] = currentItem;
+  }
+
+  return shuffled;
+};
+
+const mapPublicMangaItems = async (
+  rows: Array<{
+    id: number;
+    slug: string;
+    title: string;
+    author: string;
+    status: string | null;
+    cover: string | null;
+    coverUpdatedAt: number | null;
+    latestChapterNumber: string | null;
+    chapterCount: number;
+    isOneshot: boolean;
+  }>,
+): Promise<MangaListItem[]> => {
+  const genresByMangaId = await mapMangaGenres(rows.map((row) => row.id));
+
+  return rows.map((row) => ({
+    ...mapBaseMangaFields(row),
+    genres: genresByMangaId.get(row.id) ?? [],
+  }));
+};
+
 const buildMangaConditions = (query: Pick<MangaListQuery, "q" | "genre" | "status">): SQL<unknown>[] => {
   const conditions: SQL<unknown>[] = [eq(manga.isHidden, 0)];
 
@@ -188,6 +223,34 @@ const buildMangaConditions = (query: Pick<MangaListQuery, "q" | "genre" | "statu
 };
 
 export class MangaRepository {
+  private async listPublicMangaByIds(ids: number[]): Promise<MangaListItem[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const rows = await db
+      .select({
+        id: manga.id,
+        slug: manga.slug,
+        title: manga.title,
+        author: manga.author,
+        status: manga.status,
+        cover: manga.cover,
+        coverUpdatedAt: manga.coverUpdatedAt,
+        latestChapterNumber: chapterStats.latestChapterNumber,
+        chapterCount: sql<number>`coalesce(${chapterStats.chapterCount}, 0)`.mapWith(Number),
+        isOneshot: manga.isOneshot,
+      })
+      .from(manga)
+      .leftJoin(chapterStats, eq(chapterStats.mangaId, manga.id))
+      .where(and(eq(manga.isHidden, 0), inArray(manga.id, ids)));
+
+    const items = await mapPublicMangaItems(rows);
+    const itemsById = new Map(items.map((item) => [item.id, item]));
+
+    return ids.map((id) => itemsById.get(id)).filter((item): item is MangaListItem => Boolean(item));
+  }
+
   private async listPublicMangaWithConditions(query: MangaListQuery, conditions: SQL<unknown>[]): Promise<PublicMangaListResult> {
     const offset = (query.page - 1) * query.limit;
 
@@ -226,13 +289,8 @@ export class MangaRepository {
       .limit(query.limit)
       .offset(offset);
 
-    const genresByMangaId = await mapMangaGenres(items.map((item) => item.id));
-
     return {
-      items: items.map((item) => ({
-        ...mapBaseMangaFields(item),
-        genres: genresByMangaId.get(item.id) ?? [],
-      })),
+      items: await mapPublicMangaItems(items),
       total,
     };
   }
@@ -247,6 +305,57 @@ export class MangaRepository {
     const conditions = [...buildMangaConditions(query), buildGroupNameMatchFilter(normalizedGroupName)];
 
     return this.listPublicMangaWithConditions(query, conditions);
+  }
+
+  async listRandomPublicManga(query: MangaRandomQuery): Promise<MangaListItem[]> {
+    const boundsRows = await db
+      .select({
+        total: sql<number>`count(*)`.mapWith(Number),
+      })
+      .from(manga)
+      .where(eq(manga.isHidden, 0));
+
+    const bounds = boundsRows[0];
+    const totalVisible = bounds?.total ?? 0;
+
+    if (totalVisible === 0) {
+      return [];
+    }
+
+    const targetCount = Math.min(query.limit, totalVisible);
+
+    if (totalVisible <= targetCount) {
+      const allVisibleRows = await db
+        .select({ id: manga.id })
+        .from(manga)
+        .where(eq(manga.isHidden, 0))
+        .orderBy(asc(manga.id))
+        .limit(targetCount);
+
+      return this.listPublicMangaByIds(shuffleArray(allVisibleRows.map((row) => row.id)));
+    }
+
+    const selectedOffsets = new Set<number>();
+
+    while (selectedOffsets.size < targetCount) {
+      selectedOffsets.add(Math.floor(Math.random() * totalVisible));
+    }
+
+    const offsetRows = await Promise.all(
+      [...selectedOffsets].map((offset) =>
+        db
+          .select({ id: manga.id })
+          .from(manga)
+          .where(eq(manga.isHidden, 0))
+          .orderBy(asc(manga.id))
+          .limit(1)
+          .offset(offset),
+      ),
+    );
+
+    const selectedIds = offsetRows.map((rows) => rows[0]?.id).filter((id): id is number => typeof id === "number");
+
+    return this.listPublicMangaByIds(shuffleArray(selectedIds));
   }
 
   async findPublicMangaById(id: number): Promise<MangaDetail | null> {

@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { errorEnvelopeSchema, successEnvelopeSchema } from "../contracts/common.js";
 import { mangaChapterListSchema } from "../contracts/chapter.js";
-import { mangaDetailSchema, mangaIdParamsSchema, mangaListItemSchema, mangaListQuerySchema } from "../contracts/manga.js";
+import { mangaDetailSchema, mangaIdParamsSchema, mangaListItemSchema, mangaListQuerySchema, mangaRandomQuerySchema } from "../contracts/manga.js";
 import { AppError } from "../lib/errors.js";
 import { CACHE_CONTROL } from "../lib/cache.js";
 import { getPaginationMeta } from "../lib/pagination.js";
@@ -15,6 +15,42 @@ import { chapterService } from "../services/chapter.service.js";
 import { mangaService } from "../services/manga.service.js";
 
 export const mangaRoute = new Hono<AppBindings>();
+
+mangaRoute.get(
+  "/manga/random",
+  describeRoute({
+    tags: ["Manga"],
+    summary: "List random public manga",
+    description: "Returns 1 to 10 random public manga items using the standard manga list item shape.",
+    responses: {
+      200: {
+        description: "Random manga list",
+        content: {
+          "application/json": {
+            schema: resolver(successEnvelopeSchema(z.array(mangaListItemSchema))),
+          },
+        },
+      },
+      400: {
+        description: "Invalid query parameters",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
+    },
+  }),
+  validator("query", mangaRandomQuerySchema, validationHook),
+  async (c) => {
+    const query = c.req.valid("query");
+    const items = await mangaService.listRandomPublicManga(query);
+
+    c.header("Cache-Control", CACHE_CONTROL.mangaRandom);
+
+    return jsonSuccess(c, items);
+  },
+);
 
 mangaRoute.get(
   "/manga",

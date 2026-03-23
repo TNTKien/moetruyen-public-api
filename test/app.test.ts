@@ -21,6 +21,7 @@ const { userService } = await import("../src/services/user.service.ts");
 
 const originals = {
   listPublicManga: mangaService.listPublicManga,
+  listRandomPublicManga: mangaService.listRandomPublicManga,
   getPublicMangaById: mangaService.getPublicMangaById,
   listPublicChaptersByMangaId: chapterService.listPublicChaptersByMangaId,
   getPublicChapterReaderById: chapterService.getPublicChapterReaderById,
@@ -36,6 +37,7 @@ const originals = {
 
 afterEach(() => {
   mangaService.listPublicManga = originals.listPublicManga;
+  mangaService.listRandomPublicManga = originals.listRandomPublicManga;
   mangaService.getPublicMangaById = originals.getPublicMangaById;
   chapterService.listPublicChaptersByMangaId = originals.listPublicChaptersByMangaId;
   chapterService.getPublicChapterReaderById = originals.getPublicChapterReaderById;
@@ -161,6 +163,69 @@ describe("public api routes", () => {
       slug: "sample-manga",
       coverUrl: "https://moetruyen.net/uploads/covers/sample-manga.webp?t=123",
     });
+  });
+
+  it("returns random manga with default limit", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+    let detailRouteCalled = false;
+
+    mangaService.listRandomPublicManga = async (query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return [
+        {
+          id: 31,
+          slug: "random-one",
+          title: "Random One",
+          author: "Author",
+          status: "ongoing",
+          cover: "/uploads/covers/random-one.webp",
+          coverUrl: "https://moetruyen.net/uploads/covers/random-one.webp?t=123",
+          coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+          latestChapterNumber: 12,
+          latestChapterNumberText: "12.000",
+          chapterCount: 12,
+          isOneshot: false,
+          genres: [{ id: 1, name: "Drama" }],
+        },
+      ];
+    };
+    mangaService.getPublicMangaById = async () => {
+      detailRouteCalled = true;
+      return null;
+    };
+
+    const response = await app.request("http://local/v1/manga/random");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.mangaRandom);
+    expect(receivedQuery).toMatchObject({ limit: 1 });
+    expect(detailRouteCalled).toBe(false);
+    expect(body.data).toHaveLength(1);
+    expect(body.data[0]).toMatchObject({ slug: "random-one" });
+  });
+
+  it("passes custom random manga limits", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    mangaService.listRandomPublicManga = async (query) => {
+      receivedQuery = query as Record<string, unknown>;
+      return [];
+    };
+
+    const response = await app.request("http://local/v1/manga/random?limit=3");
+
+    expect(response.status).toBe(200);
+    expect(receivedQuery).toMatchObject({ limit: 3 });
+  });
+
+  it("validates random manga limit", async () => {
+    const response = await app.request("http://local/v1/manga/random?limit=11");
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
   });
 
   it("returns 404 when manga detail is missing", async () => {
