@@ -17,7 +17,7 @@ export const mountOpenApiSpec = (app: Hono<AppBindings>) => {
             "",
             "Full features will be added in the future (chắc thế)",
             "",
-            "- Github: [TNTKien/moetruyen-public-api](https://github.com/TNTKien/moetruyen-public-api)",
+            "- Github: [TNTKien/moetruyen-public-api](https://github.com/TNTKien/moetruyen-public-api), [dex593/web1 (MoeTruyen)](https://github.com/dex593/web1)",
             "- Note: All API endpoints have a global rate limit of 7 requests per second per IP.",
           ].join("\n"),
         },
