@@ -12,7 +12,14 @@ export const mountOpenApiSpec = (app: Hono<AppBindings>) => {
         info: {
           title: "Moetruyen Public API",
           version: "0.1.0",
-          description: "Read-only public REST API for manga, chapters, genres, search, teams, and users.",
+          description: [
+            "Unofficial read-only REST API for [MoeTruyen](https://moetruyen.net/).",
+            "",
+            "Full features will be added in the future (chắc thế)",
+            "",
+            "- Github: [TNTKien/moetruyen-public-api](https://github.com/TNTKien/moetruyen-public-api)",
+            "- Note: All API endpoints have a global rate limit of 7 requests per second per IP.",
+          ].join("\n"),
         },
         servers: [
           {
