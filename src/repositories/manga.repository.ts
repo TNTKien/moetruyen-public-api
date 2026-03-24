@@ -147,6 +147,7 @@ const mapBaseMangaFields = (row: {
   id: number;
   slug: string;
   title: string;
+  description: string | null;
   author: string;
   status: string | null;
   cover: string | null;
@@ -158,6 +159,7 @@ const mapBaseMangaFields = (row: {
   id: row.id,
   slug: row.slug,
   title: row.title,
+  description: row.description,
   author: row.author,
   status: normalizeMangaStatus(row.status),
   cover: row.cover,
@@ -187,6 +189,7 @@ const mapPublicMangaItems = async (
     id: number;
     slug: string;
     title: string;
+    description: string | null;
     author: string;
     status: string | null;
     cover: string | null;
@@ -233,6 +236,7 @@ export class MangaRepository {
         id: manga.id,
         slug: manga.slug,
         title: manga.title,
+        description: manga.description,
         author: manga.author,
         status: manga.status,
         cover: manga.cover,
@@ -268,6 +272,7 @@ export class MangaRepository {
         id: manga.id,
         slug: manga.slug,
         title: manga.title,
+        description: manga.description,
         author: manga.author,
         status: manga.status,
         cover: manga.cover,
@@ -364,6 +369,7 @@ export class MangaRepository {
         id: manga.id,
         slug: manga.slug,
         title: manga.title,
+        description: manga.description,
         author: manga.author,
         status: manga.status,
         cover: manga.cover,
@@ -371,7 +377,6 @@ export class MangaRepository {
         latestChapterNumber: chapterStats.latestChapterNumber,
         chapterCount: sql<number>`coalesce(${chapterStats.chapterCount}, 0)`.mapWith(Number),
         isOneshot: manga.isOneshot,
-        description: manga.description,
         groupName: manga.groupName,
       })
       .from(manga)
@@ -388,7 +393,6 @@ export class MangaRepository {
 
     return {
       ...mapBaseMangaFields(item),
-      description: item.description,
       groupName: item.groupName,
       genres: genresByMangaId.get(item.id) ?? [],
     };
