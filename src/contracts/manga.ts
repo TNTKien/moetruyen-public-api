@@ -20,6 +20,7 @@ export const mangaListItemSchema = z.object({
   id: z.number().int().positive(),
   slug: z.string().min(1),
   title: z.string().min(1),
+  description: z.string().nullable(),
   author: z.string().nullable(),
   status: mangaStatusSchema,
   cover: z.string().nullable(),
@@ -33,7 +34,6 @@ export const mangaListItemSchema = z.object({
 });
 
 export const mangaDetailSchema = mangaListItemSchema.extend({
-  description: z.string().nullable(),
   groupName: z.string().nullable(),
 });
 

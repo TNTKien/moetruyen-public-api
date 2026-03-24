@@ -127,6 +127,7 @@ describe("public api routes", () => {
             id: 1,
             slug: "sample-manga",
             title: "Sample Manga",
+            description: "A sample description",
             author: "Author",
             status: "ongoing",
             cover: "/uploads/covers/sample-manga.webp",
@@ -161,6 +162,7 @@ describe("public api routes", () => {
     });
     expect(body.data[0]).toMatchObject({
       slug: "sample-manga",
+      description: "A sample description",
       coverUrl: "https://moetruyen.net/uploads/covers/sample-manga.webp?t=123",
     });
   });
@@ -177,6 +179,7 @@ describe("public api routes", () => {
           id: 31,
           slug: "random-one",
           title: "Random One",
+          description: "A random description",
           author: "Author",
           status: "ongoing",
           cover: "/uploads/covers/random-one.webp",
@@ -203,7 +206,7 @@ describe("public api routes", () => {
     expect(receivedQuery).toMatchObject({ limit: 1 });
     expect(detailRouteCalled).toBe(false);
     expect(body.data).toHaveLength(1);
-    expect(body.data[0]).toMatchObject({ slug: "random-one" });
+    expect(body.data[0]).toMatchObject({ slug: "random-one", description: "A random description" });
   });
 
   it("passes custom random manga limits", async () => {
@@ -238,6 +241,37 @@ describe("public api routes", () => {
     expect(body.error).toMatchObject({
       code: "MANGA_NOT_FOUND",
       message: "Manga not found",
+    });
+  });
+
+  it("returns public manga detail with full description", async () => {
+    mangaService.getPublicMangaById = async () => ({
+      id: 1,
+      slug: "sample-manga",
+      title: "Sample Manga",
+      description: "Full manga description",
+      author: "Author",
+      status: "ongoing",
+      cover: "/uploads/covers/sample-manga.webp",
+      coverUrl: "https://moetruyen.net/uploads/covers/sample-manga.webp?t=123",
+      coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+      latestChapterNumber: 12,
+      latestChapterNumberText: "12.000",
+      chapterCount: 12,
+      isOneshot: false,
+      groupName: "Test Team",
+      genres: [{ id: 10, name: "Drama" }],
+    });
+
+    const response = await app.request("http://local/v1/manga/1");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.mangaDetail);
+    expect(body.data).toMatchObject({
+      slug: "sample-manga",
+      description: "Full manga description",
+      groupName: "Test Team",
     });
   });
 
@@ -534,6 +568,7 @@ describe("public api routes", () => {
             id: 77,
             slug: "sample-team-manga",
             title: "Sample Team Manga",
+            description: "A team manga description",
             author: "Author",
             status: "ongoing",
             cover: "/uploads/covers/sample-team-manga.webp",
@@ -568,6 +603,7 @@ describe("public api routes", () => {
     });
     expect(body.data[0]).toMatchObject({
       slug: "sample-team-manga",
+      description: "A team manga description",
       chapterCount: 21,
     });
   });
@@ -746,5 +782,6 @@ describe("public api routes", () => {
       slug: "search-match",
       status: "completed",
     });
+    expect(body.data[0]).not.toHaveProperty("description");
   });
 });
