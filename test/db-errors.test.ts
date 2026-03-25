@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-const { normalizeDbError } = await import("../src/lib/db-errors.ts");
+const { normalizeDbError } = await import("../src/lib/db-errors.js");
 
 describe("database error normalization", () => {
   it("maps unique violations to conflict app errors", () => {

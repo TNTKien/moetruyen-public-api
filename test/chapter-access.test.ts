@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-const { getPublicChapterAccess, isPublicChapterAccessible } = await import("../src/lib/chapter-access.ts");
+const { getPublicChapterAccess, isPublicChapterAccessible } = await import("../src/lib/chapter-access.js");
 
 describe("chapter access rules", () => {
   it("blocks password-protected chapters", () => {
