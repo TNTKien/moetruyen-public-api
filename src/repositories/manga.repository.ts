@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 
-import type { MangaDetail, MangaListItem, MangaListQuery, MangaRandomQuery } from "../contracts/manga.js";
+import type { MangaDetail, MangaListItem, MangaListQuery, MangaRandomQuery, MangaTopItem, MangaTopQuery, MangaTopTime } from "../contracts/manga.js";
+import { pool } from "../db/client.js";
 import type { SearchMangaItem, SearchMangaQuery } from "../contracts/search.js";
 import { db } from "../db/client.js";
 import { chapters } from "../db/schema/chapters.js";
@@ -21,6 +22,25 @@ export interface PublicMangaListResult {
   total: number;
 }
 
+export interface PublicTopMangaListResult {
+  items: MangaTopItem[];
+  total: number;
+}
+
+interface TopMangaQueryRow {
+  manga_id: number;
+  manga_views: string | number;
+}
+
+const VIEW_STATS_TIMEZONE = "Asia/Ho_Chi_Minh";
+
+const TOP_MANGA_TIME_DAYS: Record<MangaTopTime, number> = {
+  "24h": 1,
+  "7d": 7,
+  "30d": 30,
+  all_time: 0,
+};
+
 const chapterStats = db
   .select({
     mangaId: chapters.mangaId,
@@ -30,6 +50,69 @@ const chapterStats = db
   .from(chapters)
   .groupBy(chapters.mangaId)
   .as("chapter_stats");
+
+const viewStatsDateFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: VIEW_STATS_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+const isoDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+const toViewStatsDateString = (timestampMs: number): string => {
+  const safeTimestamp = Number.isFinite(timestampMs) ? timestampMs : Date.now();
+  const targetDate = new Date(safeTimestamp);
+
+  try {
+    const formatted = viewStatsDateFormatter.format(targetDate);
+
+    if (isoDatePattern.test(formatted)) {
+      return formatted;
+    }
+  } catch {
+    // fallback below
+  }
+
+  return targetDate.toISOString().slice(0, 10);
+};
+
+const shiftViewStatsDateByDays = (isoDate: string, offsetDays: number): string => {
+  const match = isoDate.trim().match(isoDatePattern);
+
+  if (!match) {
+    return "";
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  if (![year, month, day].every((value) => Number.isFinite(value))) {
+    return "";
+  }
+
+  const shifted = new Date(Date.UTC(year, month - 1, day));
+  shifted.setUTCDate(shifted.getUTCDate() + offsetDays);
+
+  return shifted.toISOString().slice(0, 10);
+};
+
+const buildTopMangaSinceDate = (time: MangaTopTime): string => {
+  const daysWindow = TOP_MANGA_TIME_DAYS[time];
+
+  if (!daysWindow) {
+    return "";
+  }
+
+  const todayDate = toViewStatsDateString(Date.now());
+
+  if (daysWindow <= 1) {
+    return todayDate;
+  }
+
+  return shiftViewStatsDateByDays(todayDate, -(daysWindow - 1));
+};
 
 const buildStatusFilter = (status: PublicMangaStatus): SQL<unknown> => {
   const loweredStatus = sql`lower(coalesce(${manga.status}, ''))`;
@@ -303,6 +386,193 @@ export class MangaRepository {
   async listPublicManga(query: MangaListQuery): Promise<PublicMangaListResult> {
     const conditions = buildMangaConditions(query);
     return this.listPublicMangaWithConditions(query, conditions);
+  }
+
+  private async listTopPublicMangaByViews(query: MangaTopQuery): Promise<PublicTopMangaListResult> {
+    const offset = (query.page - 1) * query.limit;
+    const sinceDate = buildTopMangaSinceDate(query.time);
+
+    const totalSql = query.time === "all_time"
+      ? `
+          WITH chapter_totals AS (
+            SELECT
+              c.manga_id,
+              SUM(GREATEST(COALESCE(v.view_count, 0), 0))::bigint AS chapter_total_views
+            FROM chapters c
+            LEFT JOIN chapter_view_stats v ON v.chapter_id = c.id
+            GROUP BY c.manga_id
+          ),
+          ranked AS (
+            SELECT
+              m.id AS manga_id,
+              COALESCE(chapter_totals.chapter_total_views, 0)::bigint AS manga_views
+            FROM manga m
+            LEFT JOIN chapter_totals ON chapter_totals.manga_id = m.id
+            WHERE COALESCE(m.is_hidden, 0) = 0
+              AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
+          )
+          SELECT COUNT(*)::bigint AS total
+          FROM ranked
+        `
+      : `
+          WITH period_totals AS (
+            SELECT
+              stats.manga_id,
+              SUM(GREATEST(COALESCE(stats.view_count, 0), 0))::bigint AS period_views
+            FROM manga_view_daily_stats stats
+            WHERE stats.view_date >= $1
+            GROUP BY stats.manga_id
+          ),
+          chapter_totals AS (
+            SELECT
+              c.manga_id,
+              SUM(GREATEST(COALESCE(v.view_count, 0), 0))::bigint AS chapter_total_views
+            FROM chapters c
+            LEFT JOIN chapter_view_stats v ON v.chapter_id = c.id
+            GROUP BY c.manga_id
+          ),
+          ranked AS (
+            SELECT
+              m.id AS manga_id,
+              LEAST(
+                COALESCE(period_totals.period_views, 0),
+                COALESCE(chapter_totals.chapter_total_views, 0)
+              )::bigint AS manga_views
+            FROM manga m
+            LEFT JOIN period_totals ON period_totals.manga_id = m.id
+            LEFT JOIN chapter_totals ON chapter_totals.manga_id = m.id
+            WHERE COALESCE(m.is_hidden, 0) = 0
+              AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
+              AND COALESCE(period_totals.period_views, 0) > 0
+          )
+          SELECT COUNT(*)::bigint AS total
+          FROM ranked
+        `;
+
+    const pageSql = query.time === "all_time"
+      ? `
+          WITH chapter_totals AS (
+            SELECT
+              c.manga_id,
+              SUM(GREATEST(COALESCE(v.view_count, 0), 0))::bigint AS chapter_total_views
+            FROM chapters c
+            LEFT JOIN chapter_view_stats v ON v.chapter_id = c.id
+            GROUP BY c.manga_id
+          ),
+          ranked AS (
+            SELECT
+              m.id AS manga_id,
+              COALESCE(chapter_totals.chapter_total_views, 0)::bigint AS manga_views
+            FROM manga m
+            LEFT JOIN chapter_totals ON chapter_totals.manga_id = m.id
+            WHERE COALESCE(m.is_hidden, 0) = 0
+              AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
+          )
+          SELECT manga_id, manga_views
+          FROM ranked
+          ORDER BY manga_views DESC, manga_id DESC
+          LIMIT $1 OFFSET $2
+        `
+      : `
+          WITH period_totals AS (
+            SELECT
+              stats.manga_id,
+              SUM(GREATEST(COALESCE(stats.view_count, 0), 0))::bigint AS period_views
+            FROM manga_view_daily_stats stats
+            WHERE stats.view_date >= $1
+            GROUP BY stats.manga_id
+          ),
+          chapter_totals AS (
+            SELECT
+              c.manga_id,
+              SUM(GREATEST(COALESCE(v.view_count, 0), 0))::bigint AS chapter_total_views
+            FROM chapters c
+            LEFT JOIN chapter_view_stats v ON v.chapter_id = c.id
+            GROUP BY c.manga_id
+          ),
+          ranked AS (
+            SELECT
+              m.id AS manga_id,
+              LEAST(
+                COALESCE(period_totals.period_views, 0),
+                COALESCE(chapter_totals.chapter_total_views, 0)
+              )::bigint AS manga_views
+            FROM manga m
+            LEFT JOIN period_totals ON period_totals.manga_id = m.id
+            LEFT JOIN chapter_totals ON chapter_totals.manga_id = m.id
+            WHERE COALESCE(m.is_hidden, 0) = 0
+              AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
+              AND COALESCE(period_totals.period_views, 0) > 0
+          )
+          SELECT manga_id, manga_views
+          FROM ranked
+          ORDER BY manga_views DESC, manga_id DESC
+          LIMIT $2 OFFSET $3
+        `;
+
+    const totalResult = query.time === "all_time"
+      ? await pool.query<{ total: string | number }>(totalSql)
+      : await pool.query<{ total: string | number }>(totalSql, [sinceDate]);
+
+    const total = Number(totalResult.rows[0]?.total) || 0;
+
+    if (total === 0) {
+      return {
+        items: [],
+        total: 0,
+      };
+    }
+
+    const rankingResult = query.time === "all_time"
+      ? await pool.query<TopMangaQueryRow>(pageSql, [query.limit, offset])
+      : await pool.query<TopMangaQueryRow>(pageSql, [sinceDate, query.limit, offset]);
+
+    const rankedRows = rankingResult.rows;
+    const rankedIds = rankedRows
+      .map((row) => Number(row.manga_id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+      .map((id) => Math.floor(id));
+
+    const rankingMetaById = new Map(
+      rankedRows.map((row, index) => {
+        const mangaId = Math.floor(Number(row.manga_id));
+
+        return [mangaId, {
+          rank: offset + index + 1,
+          totalViews: Number(row.manga_views) || 0,
+        }];
+      }),
+    );
+
+    const mangaItems = await this.listPublicMangaByIds(rankedIds);
+    const mangaById = new Map(mangaItems.map((item) => [item.id, item]));
+
+    return {
+      items: rankedIds
+        .map((id) => {
+          const item = mangaById.get(id);
+          const rankingMeta = rankingMetaById.get(id);
+
+          if (!item || !rankingMeta) {
+            return null;
+          }
+
+          return {
+            ...item,
+            rank: rankingMeta.rank,
+            totalViews: rankingMeta.totalViews,
+          } satisfies MangaTopItem;
+        })
+        .filter((item): item is MangaTopItem => item !== null),
+      total,
+    };
+  }
+
+  async listTopPublicManga(query: MangaTopQuery): Promise<PublicTopMangaListResult> {
+    switch (query.sort_by) {
+      case "views":
+        return this.listTopPublicMangaByViews(query);
+    }
   }
 
   async listPublicMangaByGroupName(groupName: string, query: MangaListQuery): Promise<PublicMangaListResult> {
