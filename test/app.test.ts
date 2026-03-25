@@ -10,14 +10,14 @@ process.env.CHAPTER_CDN_BASE_URL = "https://i.moetruyen.net";
 process.env.ALLOWED_ORIGINS = "https://example.com";
 process.env.LOG_LEVEL = "info";
 
-const { app } = await import("../src/app.ts");
-const { CACHE_CONTROL } = await import("../src/lib/cache.ts");
-const { mangaService } = await import("../src/services/manga.service.ts");
-const { chapterService } = await import("../src/services/chapter.service.ts");
-const { genreService } = await import("../src/services/genre.service.ts");
-const { searchService } = await import("../src/services/search.service.ts");
-const { teamService } = await import("../src/services/team.service.ts");
-const { userService } = await import("../src/services/user.service.ts");
+const { app } = await import("../src/app.js");
+const { CACHE_CONTROL } = await import("../src/lib/cache.js");
+const { mangaService } = await import("../src/services/manga.service.js");
+const { chapterService } = await import("../src/services/chapter.service.js");
+const { genreService } = await import("../src/services/genre.service.js");
+const { searchService } = await import("../src/services/search.service.js");
+const { teamService } = await import("../src/services/team.service.js");
+const { userService } = await import("../src/services/user.service.js");
 
 const originals = {
   listPublicManga: mangaService.listPublicManga,

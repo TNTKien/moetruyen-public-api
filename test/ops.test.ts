@@ -4,8 +4,8 @@ import { Hono } from "hono";
 process.env.NODE_ENV = "test";
 process.env.APITALLY_CLIENT_ID = "";
 
-const { globalRateLimitMiddleware } = await import("../src/lib/rate-limit.ts");
-const { setupMonitoring } = await import("../src/lib/monitoring.ts");
+const { globalRateLimitMiddleware } = await import("../src/lib/rate-limit.js");
+const { setupMonitoring } = await import("../src/lib/monitoring.js");
 
 describe("operations middleware configuration", () => {
   it("disables rate limiting in test mode", () => {

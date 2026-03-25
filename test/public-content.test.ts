@@ -16,7 +16,7 @@ const {
   buildChapterPageUrls,
   buildCoverUrl,
   normalizeSearchTerm,
-} = await import("../src/lib/public-content.ts");
+} = await import("../src/lib/public-content.js");
 
 describe("public content helpers", () => {
   it("normalizes search terms", () => {
