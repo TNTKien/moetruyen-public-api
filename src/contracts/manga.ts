@@ -33,6 +33,21 @@ export const mangaListItemSchema = z.object({
   genres: z.array(genreSummarySchema),
 });
 
+export const mangaTopTimeSchema = z.enum(["24h", "7d", "30d", "all_time"]);
+export const mangaTopSortBySchema = z.enum(["views"]);
+
+export const mangaTopQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+  sort_by: mangaTopSortBySchema.default("views"),
+  time: mangaTopTimeSchema.default("24h"),
+});
+
+export const mangaTopItemSchema = mangaListItemSchema.extend({
+  rank: z.number().int().positive(),
+  totalViews: z.number().int().nonnegative(),
+});
+
 export const mangaDetailSchema = mangaListItemSchema.extend({
   groupName: z.string().nullable(),
 });
@@ -48,6 +63,10 @@ export const mangaRandomQuerySchema = z.object({
 export type GenreSummary = z.infer<typeof genreSummarySchema>;
 export type MangaListQuery = z.infer<typeof mangaListQuerySchema>;
 export type MangaListItem = z.infer<typeof mangaListItemSchema>;
+export type MangaTopSortBy = z.infer<typeof mangaTopSortBySchema>;
+export type MangaTopTime = z.infer<typeof mangaTopTimeSchema>;
+export type MangaTopQuery = z.infer<typeof mangaTopQuerySchema>;
+export type MangaTopItem = z.infer<typeof mangaTopItemSchema>;
 export type MangaDetail = z.infer<typeof mangaDetailSchema>;
 export type MangaIdParams = z.infer<typeof mangaIdParamsSchema>;
 export type MangaRandomQuery = z.infer<typeof mangaRandomQuerySchema>;
