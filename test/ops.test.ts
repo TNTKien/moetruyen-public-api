@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { Hono } from "hono";
 
-process.env.NODE_ENV ??= "test";
-process.env.APITALLY_CLIENT_ID ??= "";
+process.env.NODE_ENV = "test";
+process.env.APITALLY_CLIENT_ID = "";
 
 const { globalRateLimitMiddleware } = await import("../src/lib/rate-limit.ts");
 const { setupMonitoring } = await import("../src/lib/monitoring.ts");
