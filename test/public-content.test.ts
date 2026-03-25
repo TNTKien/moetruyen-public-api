@@ -1,14 +1,14 @@
 import { describe, expect, it } from "bun:test";
 
-process.env.NODE_ENV ??= "test";
-process.env.PORT ??= "8787";
-process.env.DATABASE_URL ??= "postgres://test:test@127.0.0.1:5432/test";
-process.env.API_BASE_URL ??= "http://localhost:8787";
-process.env.PUBLIC_SITE_URL ??= "https://example.com";
-process.env.COVER_BASE_URL ??= "https://moetruyen.net";
-process.env.CHAPTER_CDN_BASE_URL ??= "https://i.moetruyen.net";
-process.env.ALLOWED_ORIGINS ??= "https://example.com";
-process.env.LOG_LEVEL ??= "info";
+process.env.NODE_ENV = "test";
+process.env.PORT = "8787";
+process.env.DATABASE_URL = "postgres://test:test@127.0.0.1:5432/test";
+process.env.API_BASE_URL = "http://localhost:8787";
+process.env.PUBLIC_SITE_URL = "https://example.com";
+process.env.COVER_BASE_URL = "https://moetruyen.net";
+process.env.CHAPTER_CDN_BASE_URL = "https://i.moetruyen.net";
+process.env.ALLOWED_ORIGINS = "https://example.com";
+process.env.LOG_LEVEL = "info";
 
 const {
   buildChapterAssetUrl,
@@ -16,7 +16,7 @@ const {
   buildChapterPageUrls,
   buildCoverUrl,
   normalizeSearchTerm,
-} = await import("../src/lib/public-content.ts");
+} = await import("../src/lib/public-content.js");
 
 describe("public content helpers", () => {
   it("normalizes search terms", () => {

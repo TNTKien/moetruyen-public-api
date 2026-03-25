@@ -15,6 +15,7 @@ Detailed API reference is available at `/docs` (Scalar) or `/openapi.json`.
 | `GET` | `/docs` | Scalar API docs |
 | `GET` | `/openapi.json` | OpenAPI document |
 | `GET` | `/v1/manga` | Paginated manga list |
+| `GET` | `/v1/manga/top` | Paginated top manga ranking |
 | `GET` | `/v1/manga/:id` | Manga detail |
 | `GET` | `/v1/manga/:id/chapters` | Chapter list for a manga |
 | `GET` | `/v1/chapters/:id` | Reader payload (page URLs) |
@@ -31,6 +32,7 @@ Detailed API reference is available at `/docs` (Scalar) or `/openapi.json`.
 
 - Manga and chapter detail routes use numeric `id`, not `slug`.
 - The API is read-only and only returns public-safe fields.
+- `GET /v1/manga/top` currently supports `sort_by=views` with `time=24h|7d|30d|all_time`.
 - `GET /v1/manga/:id/chapters` includes protected chapters and marks each item with `access: public | password_required | locked`.
 - `GET /v1/chapters/:id` returns `403 PASSWORD_REQUIRED` for password-protected chapters and `403 CHAPTER_LOCKED` for locked oneshot chapters.
 - `GET /v1/teams/:id/updates` preserves the same public chapter access semantics in its response payload.

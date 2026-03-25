@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { errorEnvelopeSchema, successEnvelopeSchema } from "../contracts/common.js";
 import { mangaChapterListSchema } from "../contracts/chapter.js";
-import { mangaDetailSchema, mangaIdParamsSchema, mangaListItemSchema, mangaListQuerySchema, mangaRandomQuerySchema } from "../contracts/manga.js";
+import { mangaDetailSchema, mangaIdParamsSchema, mangaListItemSchema, mangaListQuerySchema, mangaRandomQuerySchema, mangaTopItemSchema, mangaTopQuerySchema } from "../contracts/manga.js";
 import { AppError } from "../lib/errors.js";
 import { CACHE_CONTROL } from "../lib/cache.js";
 import { getPaginationMeta } from "../lib/pagination.js";
@@ -15,6 +15,44 @@ import { chapterService } from "../services/chapter.service.js";
 import { mangaService } from "../services/manga.service.js";
 
 export const mangaRoute = new Hono<AppBindings>();
+
+mangaRoute.get(
+  "/manga/top",
+  describeRoute({
+    tags: ["Manga"],
+    summary: "List top public manga",
+    description: "Returns paginated public manga rankings.",
+    responses: {
+      200: {
+        description: "Paginated top manga list",
+        content: {
+          "application/json": {
+            schema: resolver(successEnvelopeSchema(z.array(mangaTopItemSchema))),
+          },
+        },
+      },
+      400: {
+        description: "Invalid query parameters",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
+    },
+  }),
+  validator("query", mangaTopQuerySchema, validationHook),
+  async (c) => {
+    const query = c.req.valid("query");
+    const result = await mangaService.listTopPublicManga(query);
+
+    c.header("Cache-Control", CACHE_CONTROL.mangaTop);
+
+    return jsonSuccess(c, result.items, {
+      pagination: getPaginationMeta({ page: query.page, limit: query.limit }, result.total),
+    });
+  },
+);
 
 mangaRoute.get(
   "/manga/random",

@@ -1,26 +1,27 @@
 import { afterEach, describe, expect, it } from "bun:test";
 
-process.env.NODE_ENV ??= "test";
-process.env.PORT ??= "8787";
-process.env.DATABASE_URL ??= "postgres://test:test@127.0.0.1:5432/test";
-process.env.API_BASE_URL ??= "http://localhost:8787";
-process.env.PUBLIC_SITE_URL ??= "https://example.com";
-process.env.COVER_BASE_URL ??= "https://moetruyen.net";
-process.env.CHAPTER_CDN_BASE_URL ??= "https://i.moetruyen.net";
-process.env.ALLOWED_ORIGINS ??= "https://example.com";
-process.env.LOG_LEVEL ??= "info";
+process.env.NODE_ENV = "test";
+process.env.PORT = "8787";
+process.env.DATABASE_URL = "postgres://test:test@127.0.0.1:5432/test";
+process.env.API_BASE_URL = "http://localhost:8787";
+process.env.PUBLIC_SITE_URL = "https://example.com";
+process.env.COVER_BASE_URL = "https://moetruyen.net";
+process.env.CHAPTER_CDN_BASE_URL = "https://i.moetruyen.net";
+process.env.ALLOWED_ORIGINS = "https://example.com";
+process.env.LOG_LEVEL = "info";
 
-const { app } = await import("../src/app.ts");
-const { CACHE_CONTROL } = await import("../src/lib/cache.ts");
-const { mangaService } = await import("../src/services/manga.service.ts");
-const { chapterService } = await import("../src/services/chapter.service.ts");
-const { genreService } = await import("../src/services/genre.service.ts");
-const { searchService } = await import("../src/services/search.service.ts");
-const { teamService } = await import("../src/services/team.service.ts");
-const { userService } = await import("../src/services/user.service.ts");
+const { app } = await import("../src/app.js");
+const { CACHE_CONTROL } = await import("../src/lib/cache.js");
+const { mangaService } = await import("../src/services/manga.service.js");
+const { chapterService } = await import("../src/services/chapter.service.js");
+const { genreService } = await import("../src/services/genre.service.js");
+const { searchService } = await import("../src/services/search.service.js");
+const { teamService } = await import("../src/services/team.service.js");
+const { userService } = await import("../src/services/user.service.js");
 
 const originals = {
   listPublicManga: mangaService.listPublicManga,
+  listTopPublicManga: mangaService.listTopPublicManga,
   listRandomPublicManga: mangaService.listRandomPublicManga,
   getPublicMangaById: mangaService.getPublicMangaById,
   listPublicChaptersByMangaId: chapterService.listPublicChaptersByMangaId,
@@ -37,6 +38,7 @@ const originals = {
 
 afterEach(() => {
   mangaService.listPublicManga = originals.listPublicManga;
+  mangaService.listTopPublicManga = originals.listTopPublicManga;
   mangaService.listRandomPublicManga = originals.listRandomPublicManga;
   mangaService.getPublicMangaById = originals.getPublicMangaById;
   chapterService.listPublicChaptersByMangaId = originals.listPublicChaptersByMangaId;
@@ -165,6 +167,77 @@ describe("public api routes", () => {
       description: "A sample description",
       coverUrl: "https://moetruyen.net/uploads/covers/sample-manga.webp?t=123",
     });
+  });
+
+  it("returns paginated top manga rankings by period", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    mangaService.listTopPublicManga = async (query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return {
+        items: [
+          {
+            id: 2,
+            slug: "top-manga",
+            title: "Top Manga",
+            description: "Top manga description",
+            author: "Author",
+            status: "ongoing",
+            cover: "/uploads/covers/top-manga.webp",
+            coverUrl: "https://moetruyen.net/uploads/covers/top-manga.webp?t=456",
+            coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+            latestChapterNumber: 120,
+            latestChapterNumberText: "120.000",
+            chapterCount: 120,
+            isOneshot: false,
+            genres: [{ id: 11, name: "Action" }],
+            rank: 2,
+            totalViews: 9876,
+          },
+        ],
+        total: 12,
+      };
+    };
+
+    const response = await app.request("http://local/v1/manga/top?sort_by=views&time=7d&page=2&limit=1");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.mangaTop);
+    expect(receivedQuery).toMatchObject({
+      sort_by: "views",
+      time: "7d",
+      page: 2,
+      limit: 1,
+    });
+    expect(body.meta.pagination).toEqual({
+      page: 2,
+      limit: 1,
+      total: 12,
+      totalPages: 12,
+    });
+    expect(body.data[0]).toMatchObject({
+      slug: "top-manga",
+      rank: 2,
+      totalViews: 9876,
+    });
+  });
+
+  it("validates top manga ranking time", async () => {
+    const response = await app.request("http://local/v1/manga/top?time=yearly");
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("validates top manga ranking sort_by", async () => {
+    const response = await app.request("http://local/v1/manga/top?sort_by=likes");
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
   });
 
   it("returns random manga with default limit", async () => {
