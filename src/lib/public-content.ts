@@ -38,19 +38,19 @@ export const formatNumericText = (value: string | number | null | undefined): st
 export const normalizeMangaStatus = (value: string | null | undefined): PublicMangaStatus => {
   const normalized = (value ?? "").trim().toLowerCase();
 
-  if (normalized === "ongoing") {
+  if (normalized === "ongoing" || normalized === "còn tiếp") {
     return "ongoing";
   }
 
-  if (normalized === "completed") {
+  if (normalized === "completed" || normalized === "hoàn thành") {
     return "completed";
   }
 
-  if (normalized === "hiatus") {
+  if (normalized === "hiatus" || normalized === "tạm dừng") {
     return "hiatus";
   }
 
-  if (normalized === "cancelled" || normalized === "canceled" || normalized === "dropped") {
+  if (normalized === "cancelled" || normalized === "canceled" || normalized === "dropped" || normalized === "đã hủy") {
     return "cancelled";
   }
 

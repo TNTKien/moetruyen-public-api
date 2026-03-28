@@ -435,7 +435,10 @@ export class TeamRepository {
       return null;
     }
 
-    return mangaRepository.listPublicMangaByGroupName(team.team_name, query);
+    return mangaRepository.listPublicMangaByGroupName(team.team_name, {
+      ...query,
+      hasChapters: 0,
+    });
   }
 
   async listPublicTeamUpdatesByTeamId(id: number, query: TeamUpdatesQuery): Promise<{ items: TeamUpdateItem[]; total: number } | null> {
