@@ -32,6 +32,7 @@ export const mangaListItemSchema = z.object({
   cover: z.string().nullable(),
   coverUrl: z.string().url().nullable(),
   coverUpdatedAt: z.string().datetime().nullable(),
+  groupName: z.string().nullable(),
   createdAt: z.string().datetime().nullable(),
   updatedAt: z.string().datetime().nullable(),
   commentCount: z.number().int().nonnegative(),
@@ -57,9 +58,7 @@ export const mangaTopItemSchema = mangaListItemSchema.extend({
   totalViews: z.number().int().nonnegative(),
 });
 
-export const mangaDetailSchema = mangaListItemSchema.extend({
-  groupName: z.string().nullable(),
-});
+export const mangaDetailSchema = mangaListItemSchema;
 
 export const mangaIdParamsSchema = z.object({
   id: z.coerce.number().int().positive(),

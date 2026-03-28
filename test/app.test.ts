@@ -144,6 +144,7 @@ describe("public api routes", () => {
             cover: "/uploads/covers/sample-manga.webp",
             coverUrl: "https://moetruyen.net/uploads/covers/sample-manga.webp?t=123",
             coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+            groupName: "Test Team",
             updatedAt: "2026-03-22T10:47:03.891Z",
             createdAt: "2026-03-20T10:47:03.891Z",
             commentCount: 5,
@@ -181,6 +182,7 @@ describe("public api routes", () => {
       coverUrl: "https://moetruyen.net/uploads/covers/sample-manga.webp?t=123",
       status: "ongoing",
       commentCount: 5,
+      groupName: "Test Team",
     });
   });
 
@@ -224,6 +226,7 @@ describe("public api routes", () => {
             cover: "/uploads/covers/top-manga.webp",
             coverUrl: "https://moetruyen.net/uploads/covers/top-manga.webp?t=456",
             coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+            groupName: "Top Team",
             updatedAt: "2026-03-22T10:47:03.891Z",
             createdAt: "2026-03-20T10:47:03.891Z",
             commentCount: 20,
@@ -298,6 +301,7 @@ describe("public api routes", () => {
           cover: "/uploads/covers/random-one.webp",
           coverUrl: "https://moetruyen.net/uploads/covers/random-one.webp?t=123",
           coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+          groupName: "Random Team",
           updatedAt: "2026-03-22T10:47:03.891Z",
           createdAt: "2026-03-20T10:47:03.891Z",
           commentCount: 3,
@@ -752,6 +756,7 @@ describe("public api routes", () => {
             cover: "/uploads/covers/sample-team-manga.webp",
             coverUrl: "https://moetruyen.net/uploads/covers/sample-team-manga.webp?t=456",
             coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+            groupName: "HUST Electro Neko Team",
             updatedAt: "2026-03-22T10:47:03.891Z",
             createdAt: "2026-03-20T10:47:03.891Z",
             commentCount: 9,
