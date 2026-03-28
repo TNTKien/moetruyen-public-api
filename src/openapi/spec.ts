@@ -21,13 +21,16 @@ export const mountOpenApiSpec = (app: Hono<AppBindings>) => {
             "",
             "NOTE:",
             "- All API endpoints have a global rate limit of 7 requests per second per IP.",
-            "- To avoid future issues, include the Origin: https://suicaodex.com or https://moetruyen.net headers when making API requests."
+            "- To avoid future issues, include the Origin: https://suicaodex.com or https://moetruyen.net headers when making API requests.",
           ].join("\n"),
         },
         servers: [
           {
             url: env.API_BASE_URL,
-            description: env.NODE_ENV === "production" ? "Production" : "Local development",
+            description:
+              env.NODE_ENV === "production"
+                ? "Production"
+                : "Local development",
           },
         ],
         tags: [
@@ -38,6 +41,7 @@ export const mountOpenApiSpec = (app: Hono<AppBindings>) => {
           { name: "Search", description: "Public search resources" },
           { name: "Teams", description: "Public translation team resources" },
           { name: "Users", description: "Public user profile resources" },
+          { name: "Comments", description: "Public comment resources" },
         ],
       },
     }),
