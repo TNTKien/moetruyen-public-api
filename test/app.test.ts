@@ -28,6 +28,7 @@ const originals = {
   getPublicChapterReaderById: chapterService.getPublicChapterReaderById,
   listPublicGenres: genreService.listPublicGenres,
   searchPublicManga: searchService.searchPublicManga,
+  listPublicTeams: teamService.listPublicTeams,
   getPublicTeamById: teamService.getPublicTeamById,
   listPublicTeamUpdatesByTeamId: teamService.listPublicTeamUpdatesByTeamId,
   listPublicTeamMangaByTeamId: teamService.listPublicTeamMangaByTeamId,
@@ -45,6 +46,7 @@ afterEach(() => {
   chapterService.getPublicChapterReaderById = originals.getPublicChapterReaderById;
   genreService.listPublicGenres = originals.listPublicGenres;
   searchService.searchPublicManga = originals.searchPublicManga;
+  teamService.listPublicTeams = originals.listPublicTeams;
   teamService.getPublicTeamById = originals.getPublicTeamById;
   teamService.listPublicTeamUpdatesByTeamId = originals.listPublicTeamUpdatesByTeamId;
   teamService.listPublicTeamMangaByTeamId = originals.listPublicTeamMangaByTeamId;
@@ -523,6 +525,64 @@ describe("public api routes", () => {
       memberCount: 7,
       totalMangaCount: 12,
     });
+  });
+
+  it("returns paginated public team list", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    teamService.listPublicTeams = async (query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return {
+        items: [
+          {
+            id: 16,
+            slug: "hust-electro-neko-team",
+            name: "HUST Electro Neko Team",
+            intro: "Public-safe intro",
+            avatarUrl: "https://example.com/team-avatar.png",
+            coverUrl: "https://example.com/team-cover.png",
+            memberCount: 7,
+            leaderCount: 1,
+            totalMangaCount: 12,
+            totalChapterCount: 98,
+            totalCommentCount: 54,
+          },
+        ],
+        total: 3,
+      };
+    };
+
+    const response = await app.request("http://local/v1/teams?q=neko&sort=member_count&limit=1");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.teamList);
+    expect(receivedQuery).toMatchObject({
+      page: 1,
+      limit: 1,
+      q: "neko",
+      sort: "member_count",
+    });
+    expect(body.meta.pagination).toEqual({
+      page: 1,
+      limit: 1,
+      total: 3,
+      totalPages: 3,
+    });
+    expect(body.data[0]).toMatchObject({
+      slug: "hust-electro-neko-team",
+      memberCount: 7,
+      totalCommentCount: 54,
+    });
+  });
+
+  it("validates public team list sort", async () => {
+    const response = await app.request("http://local/v1/teams?sort=name");
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
   });
 
   it("returns 404 when public team detail is missing", async () => {

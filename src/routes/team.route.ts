@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { errorEnvelopeSchema, successEnvelopeSchema } from "../contracts/common.js";
 import { mangaListItemSchema } from "../contracts/manga.js";
-import { teamIdParamsSchema, teamMangaListQuerySchema, teamMemberSchema, teamSummarySchema, teamUpdateItemSchema, teamUpdatesQuerySchema } from "../contracts/team.js";
+import { teamIdParamsSchema, teamListQuerySchema, teamMangaListQuerySchema, teamMemberSchema, teamSummarySchema, teamUpdateItemSchema, teamUpdatesQuerySchema } from "../contracts/team.js";
 import { CACHE_CONTROL } from "../lib/cache.js";
 import { AppError } from "../lib/errors.js";
 import { getPaginationMeta } from "../lib/pagination.js";
@@ -14,6 +14,44 @@ import { validationHook } from "../lib/validation.js";
 import { teamService } from "../services/team.service.js";
 
 export const teamRoute = new Hono<AppBindings>();
+
+teamRoute.get(
+  "/teams",
+  describeRoute({
+    tags: ["Teams"],
+    summary: "List public teams",
+    description: "Returns paginated approved translation teams with optional search and team-specific sort modes.",
+    responses: {
+      200: {
+        description: "Paginated team list",
+        content: {
+          "application/json": {
+            schema: resolver(successEnvelopeSchema(z.array(teamSummarySchema))),
+          },
+        },
+      },
+      400: {
+        description: "Invalid query parameters",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
+    },
+  }),
+  validator("query", teamListQuerySchema, validationHook),
+  async (c) => {
+    const query = c.req.valid("query");
+    const result = await teamService.listPublicTeams(query);
+
+    c.header("Cache-Control", CACHE_CONTROL.teamList);
+
+    return jsonSuccess(c, result.items, {
+      pagination: getPaginationMeta({ page: query.page, limit: query.limit }, result.total),
+    });
+  },
+);
 
 teamRoute.get(
   "/teams/:id",
