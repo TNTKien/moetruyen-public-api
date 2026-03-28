@@ -14,6 +14,9 @@ export const searchMangaItemSchema = z.object({
   cover: z.string().nullable(),
   coverUrl: z.string().url().nullable(),
   coverUpdatedAt: z.string().datetime().nullable(),
+  updatedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime().nullable(),
+  commentCount: z.number().int().nonnegative(),
   status: mangaStatusSchema,
   isAdult: z.boolean().optional(),
 });

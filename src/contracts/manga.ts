@@ -2,6 +2,11 @@ import { z } from "zod";
 
 export const mangaStatusSchema = z.enum(["ongoing", "completed", "hiatus", "cancelled", "unknown"]);
 
+export const mangaHasChaptersSchema = z
+  .enum(["0", "1"])
+  .default("0")
+  .transform((value) => Number(value) as 0 | 1);
+
 export const genreSummarySchema = z.object({
   id: z.number().int().positive(),
   name: z.string().min(1),
@@ -14,6 +19,7 @@ export const mangaListQuerySchema = z.object({
   genre: z.string().trim().max(100).optional(),
   status: mangaStatusSchema.optional(),
   sort: z.enum(["updated_at", "title", "popular"]).default("updated_at"),
+  hasChapters: mangaHasChaptersSchema,
 });
 
 export const mangaListItemSchema = z.object({
@@ -26,6 +32,9 @@ export const mangaListItemSchema = z.object({
   cover: z.string().nullable(),
   coverUrl: z.string().url().nullable(),
   coverUpdatedAt: z.string().datetime().nullable(),
+  createdAt: z.string().datetime().nullable(),
+  updatedAt: z.string().datetime().nullable(),
+  commentCount: z.number().int().nonnegative(),
   latestChapterNumber: z.number().nullable(),
   latestChapterNumberText: z.string().nullable(),
   chapterCount: z.number().int().nonnegative(),

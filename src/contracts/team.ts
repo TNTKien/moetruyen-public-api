@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { chapterAccessSchema } from "./chapter.js";
+import { mangaStatusSchema } from "./manga.js";
 import { DEFAULT_LIMIT, DEFAULT_PAGE, MAX_LIMIT } from "../lib/pagination.js";
 
 export const teamIdParamsSchema = z.object({
@@ -49,7 +50,7 @@ export const teamMangaListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
   q: z.string().trim().max(100).optional(),
   genre: z.string().trim().max(100).optional(),
-  status: z.enum(["ongoing", "completed", "hiatus", "cancelled", "unknown"]).optional(),
+  status: mangaStatusSchema.optional(),
   sort: z.enum(["updated_at", "title", "popular"]).default("updated_at"),
 });
 
