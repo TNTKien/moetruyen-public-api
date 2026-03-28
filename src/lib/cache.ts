@@ -1,4 +1,7 @@
 export const CACHE_CONTROL = {
+  recentComments: "public, max-age=30, stale-while-revalidate=120",
+  mangaComments: "public, max-age=30, stale-while-revalidate=120",
+  chapterComments: "public, max-age=30, stale-while-revalidate=120",
   genres: "public, max-age=300, stale-while-revalidate=600",
   mangaList: "public, max-age=30, stale-while-revalidate=120",
   mangaTop: "public, max-age=30, stale-while-revalidate=120",
