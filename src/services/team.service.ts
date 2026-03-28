@@ -1,7 +1,10 @@
 import { teamRepository } from "../repositories/team.repository.js";
-import type { TeamMangaListQuery, TeamUpdatesQuery } from "../contracts/team.js";
+import type { TeamListQuery, TeamMangaListQuery, TeamUpdatesQuery } from "../contracts/team.js";
 
 export const teamService = {
+  listPublicTeams(query: TeamListQuery) {
+    return teamRepository.listPublicTeams(query);
+  },
   getPublicTeamById(id: number) {
     return teamRepository.findPublicTeamById(id);
   },
