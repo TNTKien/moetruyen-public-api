@@ -18,6 +18,7 @@ const { genreService } = await import("../src/services/genre.service.js");
 const { searchService } = await import("../src/services/search.service.js");
 const { teamService } = await import("../src/services/team.service.js");
 const { userService } = await import("../src/services/user.service.js");
+const { commentService } = await import("../src/services/comment.service.js");
 
 const originals = {
   listPublicManga: mangaService.listPublicManga,
@@ -35,6 +36,9 @@ const originals = {
   listPublicTeamMembersByTeamId: teamService.listPublicTeamMembersByTeamId,
   getPublicUserByUsername: userService.getPublicUserByUsername,
   listPublicUserCommentsByUsername: userService.listPublicUserCommentsByUsername,
+  listRecentPublicComments: commentService.listRecentPublicComments,
+  listPublicMangaCommentsByMangaId: commentService.listPublicMangaCommentsByMangaId,
+  listPublicChapterCommentsByChapterId: commentService.listPublicChapterCommentsByChapterId,
 };
 
 afterEach(() => {
@@ -53,6 +57,9 @@ afterEach(() => {
   teamService.listPublicTeamMembersByTeamId = originals.listPublicTeamMembersByTeamId;
   userService.getPublicUserByUsername = originals.getPublicUserByUsername;
   userService.listPublicUserCommentsByUsername = originals.listPublicUserCommentsByUsername;
+  commentService.listRecentPublicComments = originals.listRecentPublicComments;
+  commentService.listPublicMangaCommentsByMangaId = originals.listPublicMangaCommentsByMangaId;
+  commentService.listPublicChapterCommentsByChapterId = originals.listPublicChapterCommentsByChapterId;
 });
 
 describe("public api routes", () => {
@@ -739,6 +746,233 @@ describe("public api routes", () => {
       description: "A team manga description",
       chapterCount: 21,
     });
+  });
+
+  it("returns paginated recent public comments", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    commentService.listRecentPublicComments = async (query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return {
+        items: [
+          {
+            id: 101,
+            content: "Comment content",
+            contentPreview: "Comment content",
+            createdAt: "2026-03-22T10:47:03.891Z",
+            commentPage: 1,
+            commentPath: "/manga/sample-manga#comment-101",
+            author: {
+              name: "Tester",
+              username: "tester",
+              userId: "u1",
+              avatarUrl: "https://example.com/avatar.png",
+            },
+            manga: {
+              id: 1,
+              slug: "sample-manga",
+              title: "Sample Manga",
+            },
+            chapter: null,
+          },
+        ],
+        total: 2,
+      };
+    };
+
+    const response = await app.request("http://local/v1/comments/recent?order=asc&limit=1");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.recentComments);
+    expect(receivedQuery).toMatchObject({
+      page: 1,
+      limit: 1,
+      sort: "created_at",
+      order: "asc",
+    });
+    expect(body.meta.pagination).toEqual({
+      page: 1,
+      limit: 1,
+      total: 2,
+      totalPages: 2,
+    });
+    expect(body.data[0]).toMatchObject({
+      id: 101,
+      commentPath: "/manga/sample-manga#comment-101",
+    });
+  });
+
+  it("returns paginated manga-level comments only", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    commentService.listPublicMangaCommentsByMangaId = async (_id, query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return {
+        items: [
+          {
+            id: 201,
+            content: "Manga comment",
+            createdAt: "2026-03-22T10:47:03.891Z",
+            commentPath: "/manga/sample-manga#comment-201",
+            author: {
+              name: "Tester",
+              username: "tester",
+              userId: "u1",
+              avatarUrl: "https://example.com/avatar.png",
+            },
+            replies: [
+              {
+                id: 202,
+                content: "Reply",
+                createdAt: "2026-03-22T11:47:03.891Z",
+                commentPath: "/manga/sample-manga#comment-202",
+                author: {
+                  name: "Responder",
+                  username: "responder",
+                  userId: "u2",
+                  avatarUrl: null,
+                },
+              },
+            ],
+          },
+        ],
+        total: 1,
+      };
+    };
+
+    const response = await app.request("http://local/v1/comments/manga/1?limit=1");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.mangaComments);
+    expect(receivedQuery).toMatchObject({
+      page: 1,
+      limit: 1,
+      sort: "created_at",
+      order: "desc",
+    });
+    expect(body.meta.pagination).toEqual({
+      page: 1,
+      limit: 1,
+      total: 1,
+      totalPages: 1,
+    });
+    expect(body.data[0]).toMatchObject({
+      id: 201,
+      replies: [{ id: 202 }],
+    });
+  });
+
+  it("returns 404 when manga comments target is missing", async () => {
+    commentService.listPublicMangaCommentsByMangaId = async () => null;
+
+    const response = await app.request("http://local/v1/comments/manga/999999");
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error).toMatchObject({
+      code: "MANGA_NOT_FOUND",
+      message: "Manga not found",
+    });
+  });
+
+  it("returns paginated public chapter comments", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    commentService.listPublicChapterCommentsByChapterId = async (_id, query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return {
+        items: [
+          {
+            id: 301,
+            content: "Chapter comment",
+            createdAt: "2026-03-22T10:47:03.891Z",
+            commentPath: "/manga/sample-manga/chapters/3.000#comment-301",
+            author: {
+              name: "Tester",
+              username: "tester",
+              userId: "u1",
+              avatarUrl: "https://example.com/avatar.png",
+            },
+            replies: [],
+          },
+        ],
+        total: 4,
+      };
+    };
+
+    const response = await app.request("http://local/v1/comments/chapters/99?limit=2&order=asc");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe(CACHE_CONTROL.chapterComments);
+    expect(receivedQuery).toMatchObject({
+      page: 1,
+      limit: 2,
+      sort: "created_at",
+      order: "asc",
+    });
+    expect(body.meta.pagination).toEqual({
+      page: 1,
+      limit: 2,
+      total: 4,
+      totalPages: 2,
+    });
+    expect(body.data[0]).toMatchObject({
+      id: 301,
+      commentPath: "/manga/sample-manga/chapters/3.000#comment-301",
+    });
+  });
+
+  it("returns 404 when chapter comments target is missing", async () => {
+    commentService.listPublicChapterCommentsByChapterId = async () => ({ kind: "not_found" });
+
+    const response = await app.request("http://local/v1/comments/chapters/999999");
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error).toMatchObject({
+      code: "CHAPTER_NOT_FOUND",
+      message: "Chapter not found",
+    });
+  });
+
+  it("returns 403 when chapter comments require a password", async () => {
+    commentService.listPublicChapterCommentsByChapterId = async () => ({ kind: "forbidden", reason: "password_required" });
+
+    const response = await app.request("http://local/v1/comments/chapters/99");
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error).toMatchObject({
+      code: "PASSWORD_REQUIRED",
+      message: "Password required to access this chapter",
+    });
+  });
+
+  it("returns 403 when chapter comments are locked", async () => {
+    commentService.listPublicChapterCommentsByChapterId = async () => ({ kind: "forbidden", reason: "locked" });
+
+    const response = await app.request("http://local/v1/comments/chapters/99");
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error).toMatchObject({
+      code: "CHAPTER_LOCKED",
+      message: "Chapter is locked",
+    });
+  });
+
+  it("validates comment sort query params", async () => {
+    const response = await app.request("http://local/v1/comments/recent?sort=id");
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
   });
 
   it("returns 404 when public team manga is missing", async () => {

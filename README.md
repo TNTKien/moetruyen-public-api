@@ -19,6 +19,9 @@ Detailed API reference is available at `/docs` (Scalar) or `/openapi.json`.
 | `GET` | `/v1/manga/:id` | Manga detail |
 | `GET` | `/v1/manga/:id/chapters` | Chapter list for a manga |
 | `GET` | `/v1/chapters/:id` | Reader payload (page URLs) |
+| `GET` | `/v1/comments/recent` | Paginated recent public comments |
+| `GET` | `/v1/comments/manga/:id` | Paginated manga-level public comment threads |
+| `GET` | `/v1/comments/chapters/:id` | Paginated chapter public comment threads |
 | `GET` | `/v1/genres` | Public genre list |
 | `GET` | `/v1/search/manga` | Manga search |
 | `GET` | `/v1/teams` | Paginated public team list |
@@ -34,9 +37,11 @@ Detailed API reference is available at `/docs` (Scalar) or `/openapi.json`.
 - Manga and chapter detail routes use numeric `id`, not `slug`.
 - The API is read-only and only returns public-safe fields.
 - `GET /v1/manga/top` currently supports `sort_by=views` with `time=24h|7d|30d|all_time`.
+- Comment list routes currently support `sort=created_at` with `order=asc|desc`.
 - `GET /v1/teams` currently supports `q` plus `sort=updated_at|member_count|manga_count|chapter_count|comment_count`.
 - `GET /v1/manga/:id/chapters` includes protected chapters and marks each item with `access: public | password_required | locked`.
 - `GET /v1/chapters/:id` returns `403 PASSWORD_REQUIRED` for password-protected chapters and `403 CHAPTER_LOCKED` for locked oneshot chapters.
+- `GET /v1/comments/chapters/:id` follows the same `403 PASSWORD_REQUIRED` and `403 CHAPTER_LOCKED` access semantics as the chapter reader route.
 - `GET /v1/teams/:id/updates` preserves the same public chapter access semantics in its response payload.
 
 ## Setup & Development
