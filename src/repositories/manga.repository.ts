@@ -51,6 +51,18 @@ const chapterStats = db
   .groupBy(chapters.mangaId)
   .as("chapter_stats");
 
+const visibleCommentCountExpr = sql<number>`
+  coalesce(
+    (
+      select count(*)
+      from comments c
+      where c.manga_id = ${manga.id}
+        and c.status = 'visible'
+    ),
+    0
+  )
+`.mapWith(Number);
+
 const viewStatsDateFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: VIEW_STATS_TIMEZONE,
   year: "numeric",
@@ -115,20 +127,26 @@ const buildTopMangaSinceDate = (time: MangaTopTime): string => {
 };
 
 const buildStatusFilter = (status: PublicMangaStatus): SQL<unknown> => {
-  const loweredStatus = sql`lower(coalesce(${manga.status}, ''))`;
+  const loweredStatus = sql`lower(trim(coalesce(${manga.status}, '')))`;
 
   switch (status) {
     case "ongoing":
-      return sql`${loweredStatus} = 'ongoing'`;
+      return sql`${loweredStatus} in ('ongoing', 'còn tiếp')`;
     case "completed":
-      return sql`${loweredStatus} = 'completed'`;
+      return sql`${loweredStatus} in ('completed', 'hoàn thành')`;
     case "hiatus":
-      return sql`${loweredStatus} = 'hiatus'`;
+      return sql`${loweredStatus} in ('hiatus', 'tạm dừng')`;
     case "cancelled":
-      return sql`${loweredStatus} in ('cancelled', 'canceled', 'dropped')`;
+      return sql`${loweredStatus} in ('cancelled', 'canceled', 'dropped', 'đã hủy')`;
     case "unknown":
-      return sql`${loweredStatus} = '' or ${loweredStatus} not in ('ongoing', 'completed', 'hiatus', 'cancelled', 'canceled', 'dropped')`;
+      return sql`${loweredStatus} = '' or ${loweredStatus} not in ('ongoing', 'còn tiếp', 'completed', 'hoàn thành', 'hiatus', 'tạm dừng', 'cancelled', 'canceled', 'dropped', 'đã hủy')`;
   }
+};
+
+const buildHasChaptersFilter = (hasChapters: MangaListQuery["hasChapters"]): SQL<unknown> => {
+  return hasChapters === 1
+    ? sql`coalesce(${chapterStats.chapterCount}, 0) = 0`
+    : sql`coalesce(${chapterStats.chapterCount}, 0) > 0`;
 };
 
 const buildSearchFilter = (query: string): SQL<unknown> => {
@@ -235,6 +253,9 @@ const mapBaseMangaFields = (row: {
   status: string | null;
   cover: string | null;
   coverUpdatedAt: number | null;
+  updatedAt: string | null;
+  createdAt: string | null;
+  commentCount: number;
   latestChapterNumber: string | null;
   chapterCount: number;
   isOneshot: boolean;
@@ -248,6 +269,9 @@ const mapBaseMangaFields = (row: {
   cover: row.cover,
   coverUrl: buildCoverUrl(row.cover, row.coverUpdatedAt),
   coverUpdatedAt: toIsoDateString(row.coverUpdatedAt),
+  updatedAt: toIsoDateString(row.updatedAt),
+  createdAt: toIsoDateString(row.createdAt),
+  commentCount: row.commentCount,
   latestChapterNumber: parseNumericValue(row.latestChapterNumber),
   latestChapterNumberText: formatNumericText(row.latestChapterNumber),
   chapterCount: row.chapterCount,
@@ -277,6 +301,9 @@ const mapPublicMangaItems = async (
     status: string | null;
     cover: string | null;
     coverUpdatedAt: number | null;
+    updatedAt: string | null;
+    createdAt: string | null;
+    commentCount: number;
     latestChapterNumber: string | null;
     chapterCount: number;
     isOneshot: boolean;
@@ -290,8 +317,8 @@ const mapPublicMangaItems = async (
   }));
 };
 
-const buildMangaConditions = (query: Pick<MangaListQuery, "q" | "genre" | "status">): SQL<unknown>[] => {
-  const conditions: SQL<unknown>[] = [eq(manga.isHidden, 0)];
+const buildMangaConditions = (query: Pick<MangaListQuery, "q" | "genre" | "status"> & { hasChapters?: MangaListQuery["hasChapters"] }): SQL<unknown>[] => {
+  const conditions: SQL<unknown>[] = [eq(manga.isHidden, 0), buildHasChaptersFilter(query.hasChapters ?? 0)];
 
   if (query.q) {
     conditions.push(buildSearchFilter(query.q));
@@ -324,6 +351,9 @@ export class MangaRepository {
         status: manga.status,
         cover: manga.cover,
         coverUpdatedAt: manga.coverUpdatedAt,
+        updatedAt: manga.updatedAt,
+        createdAt: manga.createdAt,
+        commentCount: visibleCommentCountExpr,
         latestChapterNumber: chapterStats.latestChapterNumber,
         chapterCount: sql<number>`coalesce(${chapterStats.chapterCount}, 0)`.mapWith(Number),
         isOneshot: manga.isOneshot,
@@ -346,6 +376,7 @@ export class MangaRepository {
         total: sql<number>`count(*)`.mapWith(Number),
       })
       .from(manga)
+      .leftJoin(chapterStats, eq(chapterStats.mangaId, manga.id))
       .where(and(...conditions));
 
     const total = totalResult[0]?.total ?? 0;
@@ -360,6 +391,9 @@ export class MangaRepository {
         status: manga.status,
         cover: manga.cover,
         coverUpdatedAt: manga.coverUpdatedAt,
+        updatedAt: manga.updatedAt,
+        createdAt: manga.createdAt,
+        commentCount: visibleCommentCountExpr,
         latestChapterNumber: chapterStats.latestChapterNumber,
         chapterCount: sql<number>`coalesce(${chapterStats.chapterCount}, 0)`.mapWith(Number),
         isOneshot: manga.isOneshot,
@@ -644,6 +678,9 @@ export class MangaRepository {
         status: manga.status,
         cover: manga.cover,
         coverUpdatedAt: manga.coverUpdatedAt,
+        updatedAt: manga.updatedAt,
+        createdAt: manga.createdAt,
+        commentCount: visibleCommentCountExpr,
         latestChapterNumber: chapterStats.latestChapterNumber,
         chapterCount: sql<number>`coalesce(${chapterStats.chapterCount}, 0)`.mapWith(Number),
         isOneshot: manga.isOneshot,
@@ -676,6 +713,9 @@ export class MangaRepository {
         title: manga.title,
         cover: manga.cover,
         coverUpdatedAt: manga.coverUpdatedAt,
+        updatedAt: manga.updatedAt,
+        createdAt: manga.createdAt,
+        commentCount: visibleCommentCountExpr,
         status: manga.status,
       })
       .from(manga)
@@ -690,6 +730,9 @@ export class MangaRepository {
       cover: item.cover,
       coverUrl: buildCoverUrl(item.cover, item.coverUpdatedAt),
       coverUpdatedAt: toIsoDateString(item.coverUpdatedAt),
+      updatedAt: toIsoDateString(item.updatedAt),
+      createdAt: toIsoDateString(item.createdAt),
+      commentCount: item.commentCount,
       status: normalizeMangaStatus(item.status),
     }));
   }

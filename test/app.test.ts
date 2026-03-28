@@ -144,6 +144,9 @@ describe("public api routes", () => {
             cover: "/uploads/covers/sample-manga.webp",
             coverUrl: "https://moetruyen.net/uploads/covers/sample-manga.webp?t=123",
             coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+            updatedAt: "2026-03-22T10:47:03.891Z",
+            createdAt: "2026-03-20T10:47:03.891Z",
+            commentCount: 5,
             latestChapterNumber: 12,
             latestChapterNumberText: "12.000",
             chapterCount: 12,
@@ -164,6 +167,7 @@ describe("public api routes", () => {
       page: 1,
       limit: 1,
       sort: "updated_at",
+      hasChapters: 0,
     });
     expect(body.meta.pagination).toEqual({
       page: 1,
@@ -175,7 +179,31 @@ describe("public api routes", () => {
       slug: "sample-manga",
       description: "A sample description",
       coverUrl: "https://moetruyen.net/uploads/covers/sample-manga.webp?t=123",
+      status: "ongoing",
+      commentCount: 5,
     });
+  });
+
+  it("parses enum-style manga hasChapters query values", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    mangaService.listPublicManga = async (query) => {
+      receivedQuery = query as Record<string, unknown>;
+      return { items: [], total: 0 };
+    };
+
+    const response = await app.request("http://local/v1/manga?hasChapters=1");
+
+    expect(response.status).toBe(200);
+    expect(receivedQuery).toMatchObject({ hasChapters: 1 });
+  });
+
+  it("validates manga hasChapters enum values", async () => {
+    const response = await app.request("http://local/v1/manga?hasChapters=true");
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
   });
 
   it("returns paginated top manga rankings by period", async () => {
@@ -196,6 +224,9 @@ describe("public api routes", () => {
             cover: "/uploads/covers/top-manga.webp",
             coverUrl: "https://moetruyen.net/uploads/covers/top-manga.webp?t=456",
             coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+            updatedAt: "2026-03-22T10:47:03.891Z",
+            createdAt: "2026-03-20T10:47:03.891Z",
+            commentCount: 20,
             latestChapterNumber: 120,
             latestChapterNumberText: "120.000",
             chapterCount: 120,
@@ -267,6 +298,9 @@ describe("public api routes", () => {
           cover: "/uploads/covers/random-one.webp",
           coverUrl: "https://moetruyen.net/uploads/covers/random-one.webp?t=123",
           coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+          updatedAt: "2026-03-22T10:47:03.891Z",
+          createdAt: "2026-03-20T10:47:03.891Z",
+          commentCount: 3,
           latestChapterNumber: 12,
           latestChapterNumberText: "12.000",
           chapterCount: 12,
@@ -337,6 +371,9 @@ describe("public api routes", () => {
       cover: "/uploads/covers/sample-manga.webp",
       coverUrl: "https://moetruyen.net/uploads/covers/sample-manga.webp?t=123",
       coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+      updatedAt: "2026-03-22T10:47:03.891Z",
+      createdAt: "2026-03-20T10:47:03.891Z",
+      commentCount: 14,
       latestChapterNumber: 12,
       latestChapterNumberText: "12.000",
       chapterCount: 12,
@@ -354,6 +391,7 @@ describe("public api routes", () => {
       slug: "sample-manga",
       description: "Full manga description",
       groupName: "Test Team",
+      commentCount: 14,
     });
   });
 
@@ -714,6 +752,9 @@ describe("public api routes", () => {
             cover: "/uploads/covers/sample-team-manga.webp",
             coverUrl: "https://moetruyen.net/uploads/covers/sample-team-manga.webp?t=456",
             coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+            updatedAt: "2026-03-22T10:47:03.891Z",
+            createdAt: "2026-03-20T10:47:03.891Z",
+            commentCount: 9,
             latestChapterNumber: 21,
             latestChapterNumberText: "21.000",
             chapterCount: 21,
@@ -1136,6 +1177,9 @@ describe("public api routes", () => {
         cover: "/uploads/covers/search-match.webp",
         coverUrl: "https://moetruyen.net/uploads/covers/search-match.webp?t=321",
         coverUpdatedAt: "2026-03-22T10:47:03.891Z",
+        updatedAt: "2026-03-22T10:47:03.891Z",
+        createdAt: "2026-03-20T10:47:03.891Z",
+        commentCount: 7,
         status: "completed",
       },
     ];
@@ -1148,6 +1192,7 @@ describe("public api routes", () => {
     expect(body.data[0]).toMatchObject({
       slug: "search-match",
       status: "completed",
+      commentCount: 7,
     });
     expect(body.data[0]).not.toHaveProperty("description");
   });

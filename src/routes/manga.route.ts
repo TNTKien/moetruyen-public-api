@@ -95,7 +95,7 @@ mangaRoute.get(
   describeRoute({
     tags: ["Manga"],
     summary: "List public manga",
-    description: "Returns paginated public manga results with optional search, genre, status, and sort filters.",
+    description: "Returns paginated public manga results with optional search, genre, status, sort, and hasChapters filters.",
     responses: {
       200: {
         description: "Paginated manga list",
