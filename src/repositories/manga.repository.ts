@@ -253,6 +253,7 @@ const mapBaseMangaFields = (row: {
   status: string | null;
   cover: string | null;
   coverUpdatedAt: number | null;
+  groupName: string | null;
   updatedAt: string | null;
   createdAt: string | null;
   commentCount: number;
@@ -269,6 +270,7 @@ const mapBaseMangaFields = (row: {
   cover: row.cover,
   coverUrl: buildCoverUrl(row.cover, row.coverUpdatedAt),
   coverUpdatedAt: toIsoDateString(row.coverUpdatedAt),
+  groupName: row.groupName,
   updatedAt: toIsoDateString(row.updatedAt),
   createdAt: toIsoDateString(row.createdAt),
   commentCount: row.commentCount,
@@ -307,6 +309,7 @@ const mapPublicMangaItems = async (
     latestChapterNumber: string | null;
     chapterCount: number;
     isOneshot: boolean;
+    groupName: string | null;
   }>,
 ): Promise<MangaListItem[]> => {
   const genresByMangaId = await mapMangaGenres(rows.map((row) => row.id));
@@ -351,6 +354,7 @@ export class MangaRepository {
         status: manga.status,
         cover: manga.cover,
         coverUpdatedAt: manga.coverUpdatedAt,
+        groupName: manga.groupName,
         updatedAt: manga.updatedAt,
         createdAt: manga.createdAt,
         commentCount: visibleCommentCountExpr,
@@ -391,6 +395,7 @@ export class MangaRepository {
         status: manga.status,
         cover: manga.cover,
         coverUpdatedAt: manga.coverUpdatedAt,
+        groupName: manga.groupName,
         updatedAt: manga.updatedAt,
         createdAt: manga.createdAt,
         commentCount: visibleCommentCountExpr,
@@ -713,6 +718,7 @@ export class MangaRepository {
         title: manga.title,
         cover: manga.cover,
         coverUpdatedAt: manga.coverUpdatedAt,
+        groupName: manga.groupName,
         updatedAt: manga.updatedAt,
         createdAt: manga.createdAt,
         commentCount: visibleCommentCountExpr,
