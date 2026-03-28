@@ -37,6 +37,7 @@ Detailed API reference is available at `/docs` (Scalar) or `/openapi.json`.
 - Manga and chapter detail routes use numeric `id`, not `slug`.
 - The API is read-only and only returns public-safe fields.
 - Manga payloads expose the existing English public status enum (`ongoing`, `completed`, `hiatus`, `cancelled`, `unknown`) while mapping Vietnamese DB values internally, plus `createdAt`, `updatedAt`, and `commentCount`.
+- `GET /v1/manga/:id` additionally returns `totalViews` and `totalFollows` when available from the underlying stats/bookmark tables.
 - Manga list-style payloads now also include `groupName` when available.
 - Chapter list payloads now include `groupName` and `viewCount` when available.
 - `GET /v1/manga/top` currently supports `sort_by=views` with `time=24h|7d|30d|all_time`.

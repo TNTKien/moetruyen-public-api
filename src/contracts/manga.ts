@@ -58,7 +58,10 @@ export const mangaTopItemSchema = mangaListItemSchema.extend({
   totalViews: z.number().int().nonnegative(),
 });
 
-export const mangaDetailSchema = mangaListItemSchema;
+export const mangaDetailSchema = mangaListItemSchema.extend({
+  totalViews: z.number().int().nonnegative(),
+  totalFollows: z.number().int().nonnegative(),
+});
 
 export const mangaIdParamsSchema = z.object({
   id: z.coerce.number().int().positive(),

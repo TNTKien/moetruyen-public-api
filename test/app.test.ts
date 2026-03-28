@@ -378,6 +378,8 @@ describe("public api routes", () => {
       updatedAt: "2026-03-22T10:47:03.891Z",
       createdAt: "2026-03-20T10:47:03.891Z",
       commentCount: 14,
+      totalViews: 12345,
+      totalFollows: 67,
       latestChapterNumber: 12,
       latestChapterNumberText: "12.000",
       chapterCount: 12,
@@ -396,6 +398,8 @@ describe("public api routes", () => {
       description: "Full manga description",
       groupName: "Test Team",
       commentCount: 14,
+      totalViews: 12345,
+      totalFollows: 67,
     });
   });
 

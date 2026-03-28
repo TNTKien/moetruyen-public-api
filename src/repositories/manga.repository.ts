@@ -63,6 +63,41 @@ const visibleCommentCountExpr = sql<number>`
   )
 `.mapWith(Number);
 
+const totalMangaViewsExpr = sql<number>`
+  coalesce(
+    (
+      select sum(greatest(coalesce(v.view_count, 0), 0))
+      from chapters c
+      left join chapter_view_stats v on v.chapter_id = c.id
+      where c.manga_id = ${manga.id}
+    ),
+    0
+  )
+`.mapWith(Number);
+
+const totalMangaFollowsExpr = sql<number>`
+  coalesce(
+    (
+      select count(distinct source.user_id)
+      from (
+        select mb.user_id
+        from manga_bookmarks mb
+        where mb.manga_id = ${manga.id}
+
+        union
+
+        select l.user_id
+        from manga_bookmark_list_items li
+        join manga_bookmark_lists l on l.id = li.list_id
+        where li.manga_id = ${manga.id}
+      ) source
+      where source.user_id is not null
+        and trim(source.user_id) <> ''
+    ),
+    0
+  )
+`.mapWith(Number);
+
 const viewStatsDateFormatter = new Intl.DateTimeFormat("en-CA", {
   timeZone: VIEW_STATS_TIMEZONE,
   year: "numeric",
@@ -686,6 +721,8 @@ export class MangaRepository {
         updatedAt: manga.updatedAt,
         createdAt: manga.createdAt,
         commentCount: visibleCommentCountExpr,
+        totalViews: totalMangaViewsExpr,
+        totalFollows: totalMangaFollowsExpr,
         latestChapterNumber: chapterStats.latestChapterNumber,
         chapterCount: sql<number>`coalesce(${chapterStats.chapterCount}, 0)`.mapWith(Number),
         isOneshot: manga.isOneshot,
@@ -705,6 +742,8 @@ export class MangaRepository {
 
     return {
       ...mapBaseMangaFields(item),
+      totalViews: item.totalViews,
+      totalFollows: item.totalFollows,
       groupName: item.groupName,
       genres: genresByMangaId.get(item.id) ?? [],
     };
