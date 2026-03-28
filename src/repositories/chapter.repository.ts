@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import type { ChapterReader, MangaChapterList } from "../contracts/chapter.js";
 import { db } from "../db/client.js";
@@ -19,6 +19,17 @@ const mapChapterNavigation = (chapter: { id: number; number: string; title: stri
   title: chapter.title,
   access: chapter.access,
 });
+
+const chapterViewCountExpr = sql<number>`
+  coalesce(
+    (
+      select sum(coalesce(cvs.view_count, 0))
+      from chapter_view_stats cvs
+      where cvs.chapter_id = ${chapters.id}
+    ),
+    0
+  )
+`.mapWith(Number);
 
 export class ChapterRepository {
   async listPublicChaptersByMangaId(mangaId: number): Promise<MangaChapterList | null> {
@@ -45,6 +56,8 @@ export class ChapterRepository {
         title: chapters.title,
         date: chapters.date,
         pages: chapters.pages,
+        groupName: chapters.groupName,
+        viewCount: chapterViewCountExpr,
         passwordHash: chapters.passwordHash,
         isOneshot: chapters.isOneshot,
       })
@@ -65,6 +78,8 @@ export class ChapterRepository {
         title: chapter.title,
         date: toIsoDateString(chapter.date),
         pages: chapter.pages,
+        groupName: chapter.groupName,
+        viewCount: chapter.viewCount,
         access: getPublicChapterAccess({
           chapterPasswordHash: chapter.passwordHash,
           chapterIsOneshot: chapter.isOneshot,
@@ -88,6 +103,7 @@ export class ChapterRepository {
         chapterDate: chapters.date,
         chapterPages: chapters.pages,
         chapterGroupName: chapters.groupName,
+        chapterViewCount: chapterViewCountExpr,
         chapterPagesPrefix: chapters.pagesPrefix,
         chapterPagesExt: chapters.pagesExt,
         chapterPagesFilePrefix: chapters.pagesFilePrefix,
@@ -154,14 +170,15 @@ export class ChapterRepository {
         chapter: {
           id: chapterRow.chapterId,
           number: parseNumericValue(chapterRow.chapterNumber) ?? 0,
-          numberText: formatNumericText(chapterRow.chapterNumber),
-          title: chapterRow.chapterTitle,
-          date: toIsoDateString(chapterRow.chapterDate),
-          pages: chapterRow.chapterPages,
-          access: "public",
-          groupName: chapterRow.chapterGroupName,
-          isOneshot: chapterRow.chapterIsOneshot,
-        },
+            numberText: formatNumericText(chapterRow.chapterNumber),
+            title: chapterRow.chapterTitle,
+            date: toIsoDateString(chapterRow.chapterDate),
+            pages: chapterRow.chapterPages,
+            access: "public",
+            groupName: chapterRow.chapterGroupName,
+            viewCount: chapterRow.chapterViewCount,
+            isOneshot: chapterRow.chapterIsOneshot,
+          },
         pageUrls: buildChapterPageUrls({
           pages: chapterRow.chapterPages,
           pagesPrefix: chapterRow.chapterPagesPrefix,

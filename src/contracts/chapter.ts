@@ -11,6 +11,8 @@ export const chapterItemSchema = z.object({
   title: z.string().nullable(),
   date: z.string().datetime().nullable(),
   pages: z.number().int().nonnegative().nullable(),
+  groupName: z.string().nullable(),
+  viewCount: z.number().int().nonnegative(),
   access: chapterAccessSchema,
 });
 
@@ -35,7 +37,6 @@ export const chapterReaderNavSchema = z.object({
 });
 
 export const chapterReaderChapterSchema = chapterItemSchema.extend({
-  groupName: z.string().nullable(),
   isOneshot: z.boolean(),
 });
 

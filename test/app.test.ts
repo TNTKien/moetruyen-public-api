@@ -414,6 +414,8 @@ describe("public api routes", () => {
           title: "Chapter 3",
           date: "2026-03-22T10:47:03.891Z",
           pages: 18,
+          groupName: "HUST Electro Neko Team",
+          viewCount: 321,
           access: "public",
         },
         {
@@ -423,6 +425,8 @@ describe("public api routes", () => {
           title: "Chapter 4",
           date: "2026-03-22T10:47:03.891Z",
           pages: 20,
+          groupName: null,
+          viewCount: 99,
           access: "password_required",
         },
       ],
@@ -437,10 +441,13 @@ describe("public api routes", () => {
       id: 99,
       number: 3,
       title: "Chapter 3",
+      groupName: "HUST Electro Neko Team",
+      viewCount: 321,
       access: "public",
     });
     expect(body.data.chapters[1]).toMatchObject({
       id: 100,
+      viewCount: 99,
       access: "password_required",
     });
   });
@@ -463,6 +470,7 @@ describe("public api routes", () => {
           pages: 2,
           access: "public",
           groupName: "Test Group",
+          viewCount: 321,
           isOneshot: false,
         },
         pageUrls: [
@@ -486,7 +494,7 @@ describe("public api routes", () => {
     expect(response.status).toBe(200);
     expect(body.data.pageUrls).toHaveLength(2);
     expect(body.data.prevChapter).toMatchObject({ id: 98, number: 2, access: "password_required" });
-    expect(body.data.chapter).toMatchObject({ id: 99, groupName: "Test Group", access: "public" });
+    expect(body.data.chapter).toMatchObject({ id: 99, groupName: "Test Group", viewCount: 321, access: "public" });
   });
 
   it("returns 404 when chapter reader payload is missing", async () => {
