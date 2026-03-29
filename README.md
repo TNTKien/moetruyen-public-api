@@ -2,7 +2,7 @@
 
 Public read-only REST API for [MoeTruyen](https://github.com/dex593/web1).
 
-Docs: [moe.suicaodex.com](https://moe.suicaodex.com/docs#tag/system)
+Docs: [moe.suicaodex.com](https://moe.suicaodex.com/docs#description/introduction)
 
 ## Setup & Development
 
