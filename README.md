@@ -19,6 +19,11 @@ bun run dev
 
 Server starts at `http://localhost:8787`.
 
+## API Surface
+
+- Stable public endpoints are served under `/v2`.
+- Legacy `/v1` endpoints have been removed.
+
 ### Verify
 ```bash
 bun run check
