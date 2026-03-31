@@ -123,7 +123,7 @@ describe("public api routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
-    expect(body).toContain("Moetruyen Public API Docs");
+    expect(body).toContain("Moetruyen Public API v0.2.0 Docs");
   });
 
   it("returns paginated manga data", async () => {
