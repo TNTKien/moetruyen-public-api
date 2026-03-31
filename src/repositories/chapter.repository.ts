@@ -107,6 +107,7 @@ export class ChapterRepository {
         chapterPagesPrefix: chapters.pagesPrefix,
         chapterPagesExt: chapters.pagesExt,
         chapterPagesFilePrefix: chapters.pagesFilePrefix,
+        chapterPagesUpdatedAt: chapters.pagesUpdatedAt,
         chapterIsOneshot: chapters.isOneshot,
         chapterPasswordHash: chapters.passwordHash,
       })
@@ -184,6 +185,7 @@ export class ChapterRepository {
           pagesPrefix: chapterRow.chapterPagesPrefix,
           pagesExt: chapterRow.chapterPagesExt,
           pagesFilePrefix: chapterRow.chapterPagesFilePrefix,
+          pagesUpdatedAt: chapterRow.chapterPagesUpdatedAt,
         }),
         prevChapter: prevChapter ? mapChapterNavigation(prevChapter) : null,
         nextChapter: nextChapter ? mapChapterNavigation(nextChapter) : null,

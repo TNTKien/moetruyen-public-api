@@ -99,12 +99,12 @@ export const buildCoverUrl = (cover: string | null | undefined, coverUpdatedAt: 
   return appendCacheToken(buildAbsoluteUrl(cover, env.COVER_BASE_URL), coverUpdatedAt);
 };
 
-export const buildChapterAssetUrl = (path: string | null | undefined): string | null => {
+export const buildChapterAssetUrl = (path: string | null | undefined, pagesUpdatedAt?: string | number | null | undefined): string | null => {
   if (!path) {
     return null;
   }
 
-  return buildAbsoluteUrl(path, env.CHAPTER_CDN_BASE_URL);
+  return appendCacheToken(buildAbsoluteUrl(path, env.CHAPTER_CDN_BASE_URL), pagesUpdatedAt);
 };
 
 export interface BuildChapterPageUrlsOptions {
@@ -112,6 +112,7 @@ export interface BuildChapterPageUrlsOptions {
   pagesPrefix: string | null | undefined;
   pagesExt: string | null | undefined;
   pagesFilePrefix?: string | null | undefined;
+  pagesUpdatedAt?: string | number | null | undefined;
 }
 
 export const normalizeChapterPageFilePrefix = (value: string | null | undefined): string => {
@@ -164,6 +165,6 @@ export const buildChapterPageUrls = (options: BuildChapterPageUrlsOptions): stri
       pageFilePrefix: options.pagesFilePrefix,
     });
 
-    return buildChapterAssetUrl(`${normalizedPrefix}/${fileName}`) ?? "";
+    return buildChapterAssetUrl(`${normalizedPrefix}/${fileName}`, options.pagesUpdatedAt) ?? "";
   }).filter((item) => item.length > 0);
 };

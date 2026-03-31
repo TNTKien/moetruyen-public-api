@@ -34,6 +34,9 @@ describe("public content helpers", () => {
     expect(buildChapterAssetUrl("/chapters/manga-1/ch-1/001.webp")).toBe(
       "https://i.moetruyen.net/chapters/manga-1/ch-1/001.webp",
     );
+    expect(buildChapterAssetUrl("/chapters/manga-1/ch-1/001.webp", 1774927339347)).toBe(
+      "https://i.moetruyen.net/chapters/manga-1/ch-1/001.webp?t=1774927339347",
+    );
   });
 
   it("builds chapter page filenames with optional page suffixes", () => {
@@ -52,11 +55,12 @@ describe("public content helpers", () => {
         pagesPrefix: "chapters/manga-1/ch-1",
         pagesExt: "webp",
         pagesFilePrefix: "abcde",
+        pagesUpdatedAt: 1774927339347,
       }),
     ).toEqual([
-      "https://i.moetruyen.net/chapters/manga-1/ch-1/001_abcde.webp",
-      "https://i.moetruyen.net/chapters/manga-1/ch-1/002_abcde.webp",
-      "https://i.moetruyen.net/chapters/manga-1/ch-1/003_abcde.webp",
+      "https://i.moetruyen.net/chapters/manga-1/ch-1/001_abcde.webp?t=1774927339347",
+      "https://i.moetruyen.net/chapters/manga-1/ch-1/002_abcde.webp?t=1774927339347",
+      "https://i.moetruyen.net/chapters/manga-1/ch-1/003_abcde.webp?t=1774927339347",
     ]);
   });
 });

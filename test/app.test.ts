@@ -478,8 +478,8 @@ describe("public api routes", () => {
           isOneshot: false,
         },
         pageUrls: [
-          "https://i.moetruyen.net/chapters/manga-1/ch-3/001_abcde.webp",
-          "https://i.moetruyen.net/chapters/manga-1/ch-3/002_abcde.webp",
+          "https://i.moetruyen.net/chapters/manga-1/ch-3/001_abcde.webp?t=1774927339347",
+          "https://i.moetruyen.net/chapters/manga-1/ch-3/002_abcde.webp?t=1774927339347",
         ],
         prevChapter: {
           id: 98,
