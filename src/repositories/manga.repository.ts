@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 
 import type { MangaDetail, MangaListItem, MangaListQuery, MangaRandomQuery, MangaTopItem, MangaTopQuery, MangaTopTime } from "../contracts/manga.js";
+import type { MangaV2ListQuery, MangaV2TeamMangaQuery } from "../contracts/manga-v2.js";
 import { pool } from "../db/client.js";
 import type { SearchMangaItem, SearchMangaQuery } from "../contracts/search.js";
 import { db } from "../db/client.js";
@@ -25,6 +26,12 @@ export interface PublicMangaListResult {
 export interface PublicTopMangaListResult {
   items: MangaTopItem[];
   total: number;
+}
+
+export interface PublicMangaStats {
+  commentCount: number;
+  totalViews: number;
+  bookmarkCount: number;
 }
 
 interface TopMangaQueryRow {
@@ -66,7 +73,7 @@ const visibleCommentCountExpr = sql<number>`
 const totalMangaViewsExpr = sql<number>`
   coalesce(
     (
-      select sum(greatest(coalesce(v.view_count, 0), 0))
+      select sum(coalesce(v.view_count, 0))
       from chapters c
       left join chapter_view_stats v on v.chapter_id = c.id
       where c.manga_id = ${manga.id}
@@ -75,7 +82,7 @@ const totalMangaViewsExpr = sql<number>`
   )
 `.mapWith(Number);
 
-const totalMangaFollowsExpr = sql<number>`
+const mangaBookmarkCountExpr = sql<number>`
   coalesce(
     (
       select count(distinct source.user_id)
@@ -197,6 +204,24 @@ const buildGenreFilter = (genreName: string): SQL<unknown> => sql`
     inner join ${genres} on ${genres.id} = ${mangaGenres.genreId}
     where ${mangaGenres.mangaId} = ${manga.id}
       and lower(${genres.name}) = lower(${genreName})
+  )
+`;
+
+const buildGenreIdsFilter = (genreIds: number[]): SQL<unknown> => sql`
+  exists (
+    select 1
+    from ${mangaGenres}
+    where ${mangaGenres.mangaId} = ${manga.id}
+      and ${inArray(mangaGenres.genreId, genreIds)}
+  )
+`;
+
+const buildExcludedGenreIdsFilter = (genreIds: number[]): SQL<unknown> => sql`
+  not exists (
+    select 1
+    from ${mangaGenres}
+    where ${mangaGenres.mangaId} = ${manga.id}
+      and ${inArray(mangaGenres.genreId, genreIds)}
   )
 `;
 
@@ -373,7 +398,112 @@ const buildMangaConditions = (query: Pick<MangaListQuery, "q" | "genre" | "statu
   return conditions;
 };
 
+const buildMangaConditionsV2 = (query: Pick<MangaV2ListQuery, "q" | "genre" | "genrex" | "status"> & { hasChapters?: MangaV2ListQuery["hasChapters"] }): SQL<unknown>[] => {
+  const conditions: SQL<unknown>[] = [eq(manga.isHidden, 0), buildHasChaptersFilter(query.hasChapters ?? 0)];
+
+  if (query.q) {
+    conditions.push(buildSearchFilter(query.q));
+  }
+
+  if (query.genre && query.genre.length > 0) {
+    conditions.push(buildGenreIdsFilter(query.genre));
+  }
+
+  if (query.genrex && query.genrex.length > 0) {
+    conditions.push(buildExcludedGenreIdsFilter(query.genrex));
+  }
+
+  if (query.status) {
+    conditions.push(buildStatusFilter(query.status));
+  }
+
+  return conditions;
+};
+
 export class MangaRepository {
+  async getPublicMangaStatsByIds(ids: number[]): Promise<Map<number, PublicMangaStats>> {
+    const uniqueIds = Array.from(new Set(ids.filter((id) => Number.isInteger(id) && id > 0)));
+
+    if (uniqueIds.length === 0) {
+      return new Map();
+    }
+
+    const { rows } = await pool.query<{
+      id: number;
+      comment_count: string | number;
+      total_views: string | number;
+      bookmark_count: string | number;
+    }>(
+      `
+        WITH target_manga AS (
+          SELECT m.id
+          FROM manga m
+          WHERE COALESCE(m.is_hidden, 0) = 0
+            AND m.id = ANY($1::int[])
+        ),
+        comment_totals AS (
+          SELECT
+            c.manga_id,
+            COUNT(*)::bigint AS comment_count
+          FROM comments c
+          WHERE c.status = 'visible'
+            AND c.manga_id = ANY($1::int[])
+          GROUP BY c.manga_id
+        ),
+        view_totals AS (
+          SELECT
+            ch.manga_id,
+            COALESCE(SUM(COALESCE(v.view_count, 0)), 0)::bigint AS total_views
+          FROM chapters ch
+          LEFT JOIN chapter_view_stats v ON v.chapter_id = ch.id
+          WHERE ch.manga_id = ANY($1::int[])
+          GROUP BY ch.manga_id
+        ),
+        bookmark_totals AS (
+          SELECT
+            source.manga_id,
+            COUNT(DISTINCT source.user_id)::bigint AS bookmark_count
+          FROM (
+            SELECT mb.manga_id, mb.user_id
+            FROM manga_bookmarks mb
+            WHERE mb.manga_id = ANY($1::int[])
+
+            UNION
+
+            SELECT li.manga_id, l.user_id
+            FROM manga_bookmark_list_items li
+            JOIN manga_bookmark_lists l ON l.id = li.list_id
+            WHERE li.manga_id = ANY($1::int[])
+          ) source
+          WHERE source.user_id IS NOT NULL
+            AND TRIM(source.user_id) <> ''
+          GROUP BY source.manga_id
+        )
+        SELECT
+          tm.id,
+          COALESCE(ct.comment_count, 0) AS comment_count,
+          COALESCE(vt.total_views, 0) AS total_views,
+          COALESCE(bt.bookmark_count, 0) AS bookmark_count
+        FROM target_manga tm
+        LEFT JOIN comment_totals ct ON ct.manga_id = tm.id
+        LEFT JOIN view_totals vt ON vt.manga_id = tm.id
+        LEFT JOIN bookmark_totals bt ON bt.manga_id = tm.id
+      `,
+      [uniqueIds],
+    );
+
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        {
+          commentCount: Number(row.comment_count) || 0,
+          totalViews: Number(row.total_views) || 0,
+          bookmarkCount: Number(row.bookmark_count) || 0,
+        } satisfies PublicMangaStats,
+      ]),
+    );
+  }
+
   private async listPublicMangaByIds(ids: number[]): Promise<MangaListItem[]> {
     if (ids.length === 0) {
       return [];
@@ -407,7 +537,7 @@ export class MangaRepository {
     return ids.map((id) => itemsById.get(id)).filter((item): item is MangaListItem => Boolean(item));
   }
 
-  private async listPublicMangaWithConditions(query: MangaListQuery, conditions: SQL<unknown>[]): Promise<PublicMangaListResult> {
+  private async listPublicMangaWithConditions(query: Pick<MangaListQuery, "page" | "limit" | "sort">, conditions: SQL<unknown>[]): Promise<PublicMangaListResult> {
     const offset = (query.page - 1) * query.limit;
 
     const totalResult = await db
@@ -459,6 +589,11 @@ export class MangaRepository {
 
   async listPublicManga(query: MangaListQuery): Promise<PublicMangaListResult> {
     const conditions = buildMangaConditions(query);
+    return this.listPublicMangaWithConditions(query, conditions);
+  }
+
+  async listPublicMangaV2(query: MangaV2ListQuery): Promise<PublicMangaListResult> {
+    const conditions = buildMangaConditionsV2(query);
     return this.listPublicMangaWithConditions(query, conditions);
   }
 
@@ -656,6 +791,13 @@ export class MangaRepository {
     return this.listPublicMangaWithConditions(query, conditions);
   }
 
+  async listPublicMangaByGroupNameV2(groupName: string, query: MangaV2TeamMangaQuery): Promise<PublicMangaListResult> {
+    const normalizedGroupName = groupName.trim();
+    const conditions = [...buildMangaConditionsV2(query), buildGroupNameMatchFilter(normalizedGroupName)];
+
+    return this.listPublicMangaWithConditions(query, conditions);
+  }
+
   async listRandomPublicManga(query: MangaRandomQuery): Promise<MangaListItem[]> {
     const boundsRows = await db
       .select({
@@ -722,7 +864,7 @@ export class MangaRepository {
         createdAt: manga.createdAt,
         commentCount: visibleCommentCountExpr,
         totalViews: totalMangaViewsExpr,
-        totalFollows: totalMangaFollowsExpr,
+        bookmarkCount: mangaBookmarkCountExpr,
         latestChapterNumber: chapterStats.latestChapterNumber,
         chapterCount: sql<number>`coalesce(${chapterStats.chapterCount}, 0)`.mapWith(Number),
         isOneshot: manga.isOneshot,
@@ -743,7 +885,7 @@ export class MangaRepository {
     return {
       ...mapBaseMangaFields(item),
       totalViews: item.totalViews,
-      totalFollows: item.totalFollows,
+      bookmarkCount: item.bookmarkCount,
       groupName: item.groupName,
       genres: genresByMangaId.get(item.id) ?? [],
     };

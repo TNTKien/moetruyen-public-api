@@ -13,13 +13,19 @@ import { jsonError } from "./lib/response.js";
 import { mountOpenApiSpec } from "./openapi/spec.js";
 import { mountScalarDocs } from "./openapi/scalar.js";
 import { chapterRoute } from "./routes/chapter.route.js";
+import { chapterRouteV2 } from "./routes/chapter-v2.route.js";
 import { commentRoute } from "./routes/comment.route.js";
+import { commentRouteV2 } from "./routes/comment-v2.route.js";
 import { genreRoute } from "./routes/genre.route.js";
+import { genreRouteV2 } from "./routes/genre-v2.route.js";
 import { healthRoute } from "./routes/health.route.js";
 import { mangaRoute } from "./routes/manga.route.js";
+import { mangaRouteV2 } from "./routes/manga-v2.route.js";
 import { searchRoute } from "./routes/search.route.js";
 import { teamRoute } from "./routes/team.route.js";
+import { teamRouteV2 } from "./routes/team-v2.route.js";
 import { userRoute } from "./routes/user.route.js";
+import { userRouteV2 } from "./routes/user-v2.route.js";
 
 export const app = new Hono<AppBindings>();
 
@@ -53,6 +59,12 @@ app.route("/v1", genreRoute);
 app.route("/v1", searchRoute);
 app.route("/v1", teamRoute);
 app.route("/v1", userRoute);
+app.route("/v2", mangaRouteV2);
+app.route("/v2", chapterRouteV2);
+app.route("/v2", commentRouteV2);
+app.route("/v2", genreRouteV2);
+app.route("/v2", teamRouteV2);
+app.route("/v2", userRouteV2);
 
 mountOpenApiSpec(app);
 mountScalarDocs(app);

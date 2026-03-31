@@ -4,45 +4,46 @@ Public read-only REST API for [MoeTruyen](https://github.com/dex593/web1).
 
 Docs: [moe.suicaodex.com](https://moe.suicaodex.com/docs#description/introduction)
 
-## Setup & Development
+## Quick Start
 
-### 1. Install & Configure
+### Install
 ```bash
 bun install
 cp .env.example .env
 ```
 
-### 2. Run Local
+### Run Local
 ```bash
 bun run dev
 ```
+
 Server starts at `http://localhost:8787`.
 
-### 3. Verify
+### Verify
 ```bash
-bun run check  # Type check
-bun run test   # Run route tests
-bun run build  # Production build
+bun run check
+bun run test
+bun run build
 ```
 
-## Environment Variables
+## Environment
 
-### Core (Required)
-- `DATABASE_URL`: PostgreSQL connection string.
-- `API_BASE_URL`: Public API URL for OpenAPI docs.
-- `ALLOWED_ORIGINS`: Comma-separated CORS origins.
-- `COVER_BASE_URL`: Usually `https://moetruyen.net`.
-- `CHAPTER_CDN_BASE_URL`: Usually `https://i.moetruyen.net`.
+### Required
+- `DATABASE_URL`
+- `API_BASE_URL`
+- `ALLOWED_ORIGINS`
+- `COVER_BASE_URL`
+- `CHAPTER_CDN_BASE_URL`
 
-### Operational (Optional)
-- `RATE_LIMIT_ENABLED`: Enable/disable global rate limiting.
-- `APITALLY_CLIENT_ID`: Enable Apitally monitoring.
-- `LOG_LEVEL`: Runtime log level.
-- `DATABASE_POOL_MAX`: PostgreSQL pool size.
+### Optional
+- `RATE_LIMIT_ENABLED`
+- `APITALLY_CLIENT_ID`
+- `LOG_LEVEL`
+- `DATABASE_POOL_MAX`
 
-## Runtime Behavior
+### Operational Notes
 
-- **Security**: CORS enabled via `ALLOWED_ORIGINS`. Rate limiting defaults to ~7 req/s per IP.
-- **Database**: Read-only queries via Drizzle. Use `bun run db:pull` to sync schema from DB.
-- **Responses**: Standardized JSON envelope with `success`, `data`, and `meta` (includes `requestId`).
-- **Errors**: Normalized error codes (e.g., `VALIDATION_ERROR`, `PASSWORD_REQUIRED`).
+- CORS uses exact origins from `ALLOWED_ORIGINS`.
+- Global rate limiting is enabled by configuration.
+- This repo does not own primary database migrations.
+- Use `bun run db:pull` to refresh Drizzle schema from the database.

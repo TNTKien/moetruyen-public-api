@@ -123,7 +123,7 @@ describe("public api routes", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
-    expect(body).toContain("Moetruyen Public API Docs");
+    expect(body).toContain("Moetruyen Public API v0.2.0 Docs");
   });
 
   it("returns paginated manga data", async () => {
@@ -379,7 +379,7 @@ describe("public api routes", () => {
       createdAt: "2026-03-20T10:47:03.891Z",
       commentCount: 14,
       totalViews: 12345,
-      totalFollows: 67,
+      bookmarkCount: 67,
       latestChapterNumber: 12,
       latestChapterNumberText: "12.000",
       chapterCount: 12,
@@ -399,7 +399,7 @@ describe("public api routes", () => {
       groupName: "Test Team",
       commentCount: 14,
       totalViews: 12345,
-      totalFollows: 67,
+      bookmarkCount: 67,
     });
   });
 

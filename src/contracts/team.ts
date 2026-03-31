@@ -36,27 +36,29 @@ export const teamListSortSchema = z.enum([
   "manga_count",
   "chapter_count",
   "comment_count",
-]);
+]).describe("Team list sort mode. Use `updated_at`, `member_count`, `manga_count`, `chapter_count`, or `comment_count`.");
 
 export const teamListQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(DEFAULT_PAGE),
-  limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
-  q: z.string().trim().max(100).optional(),
-  sort: teamListSortSchema.default("updated_at"),
+  page: z.coerce.number().int().min(1).default(DEFAULT_PAGE).describe("Page number starting from `1`."),
+  limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT).describe("Maximum number of teams to return per page. Allowed range: `1` to `100`."),
+  q: z.string().trim().max(100).optional().describe("Free-text search term matched against team name, slug, and intro."),
+  sort: teamListSortSchema.default("updated_at").describe("Sort mode for the team list."),
 });
 
 export const teamMangaListQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(DEFAULT_PAGE),
-  limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
-  q: z.string().trim().max(100).optional(),
-  genre: z.string().trim().max(100).optional(),
-  status: mangaStatusSchema.optional(),
-  sort: z.enum(["updated_at", "title", "popular"]).default("updated_at"),
+  page: z.coerce.number().int().min(1).default(DEFAULT_PAGE).describe("Page number starting from `1`."),
+  limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT).describe("Maximum number of manga items to return per page. Allowed range: `1` to `100`."),
+  q: z.string().trim().max(100).optional().describe("Free-text search term matched against manga title, slug, and aliases."),
+  genre: z.string().trim().max(100).optional().describe("Legacy v1 team-manga genre filter. Accepts a genre name, not a genre id."),
+  status: mangaStatusSchema.optional().describe("Optional manga status filter for the team manga listing."),
+  sort: z.enum(["updated_at", "title", "popular"]).default("updated_at").describe(
+    "Sort mode. `updated_at` sorts by recent updates, `title` sorts alphabetically, and `popular` sorts by view-derived popularity.",
+  ),
 });
 
 export const teamUpdatesQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(DEFAULT_PAGE),
-  limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT),
+  page: z.coerce.number().int().min(1).default(DEFAULT_PAGE).describe("Page number starting from `1`."),
+  limit: z.coerce.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT).describe("Maximum number of team updates to return per page. Allowed range: `1` to `100`."),
 });
 
 export const teamUpdateItemSchema = z.object({

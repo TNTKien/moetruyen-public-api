@@ -9,7 +9,7 @@ export const mountScalarDocs = (app: Hono<AppBindings>) => {
     Scalar({
       url: "/openapi.json",
       theme: "default",
-      pageTitle: "Moetruyen Public API Docs",
+      pageTitle: "Moetruyen Public API v0.2.0 Docs",
     }),
   );
 };
