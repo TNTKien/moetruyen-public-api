@@ -186,7 +186,7 @@ mangaRouteV2.get(
   describeRoute({
     tags: ["Search"],
     summary: "Search public manga (v2)",
-    description: "Returns manga search results using the shared v2 manga base shape. Use `q` for the search term, `limit` to control result size, and `include` to request optional `stats` and/or `genres`.",
+    description: "A light-weight search endpoint, use `/v2/manga` for full filtering support.",
     responses: {
       200: {
         description: "Search results",
