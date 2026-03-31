@@ -17,6 +17,7 @@ import { commentRoute } from "./routes/comment.route.js";
 import { genreRoute } from "./routes/genre.route.js";
 import { healthRoute } from "./routes/health.route.js";
 import { mangaRoute } from "./routes/manga.route.js";
+import { mangaRouteV2 } from "./routes/manga-v2.route.js";
 import { searchRoute } from "./routes/search.route.js";
 import { teamRoute } from "./routes/team.route.js";
 import { userRoute } from "./routes/user.route.js";
@@ -53,6 +54,7 @@ app.route("/v1", genreRoute);
 app.route("/v1", searchRoute);
 app.route("/v1", teamRoute);
 app.route("/v1", userRoute);
+app.route("/v2", mangaRouteV2);
 
 mountOpenApiSpec(app);
 mountScalarDocs(app);
