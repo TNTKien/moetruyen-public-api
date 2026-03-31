@@ -46,9 +46,12 @@ const parseGenreIdsValue = (value: string | number | undefined, ctx: z.Refinemen
 export const mangaV2GenreIdsSchema = z
   .union([z.string(), z.number()])
   .optional()
-  .transform((value, ctx) => parseGenreIdsValue(value as string | number | undefined, ctx));
+  .transform((value, ctx) => parseGenreIdsValue(value as string | number | undefined, ctx))
+  .describe("Comma-separated genre ids with OR semantics. Example: `13,15` returns manga that match at least one of those genre ids.");
 
-export const mangaV2IncludeItemSchema = z.enum(["stats", "genres"]);
+export const mangaV2IncludeItemSchema = z.enum(["stats", "genres"]).describe(
+  "Supported include expansion values. `stats` adds aggregate metrics. `genres` adds the genre array.",
+);
 
 const parseIncludeValue = (value: string | undefined, ctx: z.RefinementCtx): Array<z.infer<typeof mangaV2IncludeItemSchema>> => {
   if (!value) {
@@ -83,7 +86,12 @@ const parseIncludeValue = (value: string | undefined, ctx: z.RefinementCtx): Arr
   return parsedItems;
 };
 
-export const mangaV2IncludeQuerySchema = z.string().trim().optional().transform((value, ctx) => parseIncludeValue(value, ctx));
+export const mangaV2IncludeQuerySchema = z
+  .string()
+  .trim()
+  .optional()
+  .transform((value, ctx) => parseIncludeValue(value, ctx))
+  .describe("Comma-separated expansions. Supported values: `stats`, `genres`. Example: `stats,genres`.");
 
 export const mangaV2BaseSchema = mangaListItemSchema.pick({
   id: true,
@@ -105,10 +113,10 @@ export const mangaV2BaseSchema = mangaListItemSchema.pick({
 });
 
 export const mangaV2StatsSchema = z.object({
-  commentCount: z.number().int().nonnegative(),
-  totalViews: z.number().int().nonnegative(),
-  bookmarkCount: z.number().int().nonnegative(),
-});
+  commentCount: z.number().int().nonnegative().describe("Total number of visible comments for the manga."),
+  totalViews: z.number().int().nonnegative().describe("Total accumulated chapter views for the manga."),
+  bookmarkCount: z.number().int().nonnegative().describe("Total number of users who bookmarked the manga."),
+}).describe("Optional aggregate statistics. Present only when `include=stats` is requested.");
 
 export const mangaV2ItemSchema = mangaV2BaseSchema.extend({
   stats: mangaV2StatsSchema.optional(),
@@ -116,19 +124,19 @@ export const mangaV2ItemSchema = mangaV2BaseSchema.extend({
 });
 
 export const mangaV2RankingSchema = z.object({
-  rank: z.number().int().positive(),
-  sortBy: mangaTopSortBySchema,
-  time: mangaTopTimeSchema,
-  value: z.number().int().nonnegative(),
-});
+  rank: z.number().int().positive().describe("1-based ranking position in the current result set."),
+  sortBy: mangaTopSortBySchema.describe("Ranking metric used for this list."),
+  time: mangaTopTimeSchema.describe("Ranking window used for this list."),
+  value: z.number().int().nonnegative().describe("Metric value that determined the ranking position for this item."),
+}).describe("Route-specific ranking metadata for `/v2/manga/top`.");
 
 export const mangaV2TopItemSchema = mangaV2ItemSchema.extend({
   ranking: mangaV2RankingSchema,
 });
 
 export const mangaV2ListQuerySchema = mangaListQuerySchema.extend({
-  genre: mangaV2GenreIdsSchema,
-  genrex: mangaV2GenreIdsSchema,
+  genre: mangaV2GenreIdsSchema.describe("Optional inclusive genre filter for v2. Accepts comma-separated genre ids with OR semantics."),
+  genrex: mangaV2GenreIdsSchema.describe("Optional exclusion genre filter for v2. Manga that have any of these genre ids are removed from results."),
   include: mangaV2IncludeQuerySchema,
 });
 
@@ -149,8 +157,8 @@ export const mangaV2SearchQuerySchema = searchMangaQuerySchema.extend({
 });
 
 export const mangaV2TeamMangaQuerySchema = teamMangaListQuerySchema.extend({
-  genre: mangaV2GenreIdsSchema,
-  genrex: mangaV2GenreIdsSchema,
+  genre: mangaV2GenreIdsSchema.describe("Optional inclusive genre filter for team manga in v2. Accepts comma-separated genre ids with OR semantics."),
+  genrex: mangaV2GenreIdsSchema.describe("Optional exclusion genre filter for team manga in v2. Manga that have any of these genre ids are removed from results."),
   include: mangaV2IncludeQuerySchema,
 });
 
