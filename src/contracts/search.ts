@@ -3,8 +3,8 @@ import { z } from "zod";
 import { mangaStatusSchema } from "./manga.js";
 
 export const searchMangaQuerySchema = z.object({
-  q: z.string().trim().min(1).max(100),
-  limit: z.coerce.number().int().min(1).max(20).default(10),
+  q: z.string().trim().min(1).max(100).describe("Search term matched against manga title, slug, and aliases."),
+  limit: z.coerce.number().int().min(1).max(20).default(10).describe("Maximum number of search results to return. Allowed range: `1` to `20`."),
 });
 
 export const searchMangaItemSchema = z.object({
