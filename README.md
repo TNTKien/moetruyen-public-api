@@ -46,3 +46,26 @@ bun run build  # Production build
 - **Database**: Read-only queries via Drizzle. Use `bun run db:pull` to sync schema from DB.
 - **Responses**: Standardized JSON envelope with `success`, `data`, and `meta` (includes `requestId`).
 - **Errors**: Normalized error codes (e.g., `VALIDATION_ERROR`, `PASSWORD_REQUIRED`).
+
+## Public Routes
+
+### Manga V2
+
+- `GET /v2/manga`
+- `GET /v2/manga/:id`
+- `GET /v2/manga/top`
+- `GET /v2/manga/random`
+- `GET /v2/search/manga`
+- `GET /v2/teams/:id/manga`
+
+The `/v2` manga-family routes standardize a shared manga base shape. Use `include=stats`, `include=genres`, or `include=stats,genres` to opt into:
+
+- `commentCount`
+- `totalViews`
+- `bookmarkCount`
+
+and/or the manga `genres` array.
+
+For `/v2/manga` and `/v2/teams/:id/manga`, `genre` is a comma-separated list of numeric genre ids with OR semantics (for example `genre=13,15`), while `genrex` excludes manga that have any of the listed genre ids (for example `genrex=18,21`). This differs from the legacy v1 name-based filter.
+
+Route-specific metadata stays separate. For example, `/v2/manga/top` returns `ranking` metadata in addition to the shared manga base object.
