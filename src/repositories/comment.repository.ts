@@ -1,8 +1,7 @@
 import type { CommentAuthor, CommentListQuery, CommentReplyItem, CommentThreadItem, RecentCommentItem } from "../contracts/comment.js";
-import { env } from "../config/env.js";
 import { pool } from "../db/client.js";
 import { getPublicChapterAccess, type PublicChapterAccess } from "../lib/chapter-access.js";
-import { formatNumericText, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
+import { buildUserAvatarUrl, formatNumericText, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
 
 interface CommentAuthorFields {
   author_name: string | null;
@@ -87,31 +86,11 @@ const normalizeOptionalText = (value: string | null | undefined): string | null 
   return text.length > 0 ? text : null;
 };
 
-const normalizeOptionalUrl = (value: string | null | undefined): string | null => {
-  const text = normalizeOptionalText(value);
-
-  if (!text) {
-    return null;
-  }
-
-  try {
-    const url = new URL(text, env.PUBLIC_SITE_URL);
-
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return null;
-    }
-
-    return url.toString();
-  } catch {
-    return null;
-  }
-};
-
 const mapCommentAuthor = (row: CommentAuthorFields): CommentAuthor => ({
   name: normalizeOptionalText(row.author_name) ?? "Thành viên",
   username: normalizeOptionalText(row.author_username),
   userId: normalizeOptionalText(row.author_user_id),
-  avatarUrl: normalizeOptionalUrl(row.author_avatar_url),
+  avatarUrl: buildUserAvatarUrl(row.author_avatar_url),
 });
 
 const buildMangaCommentPath = (mangaSlug: string, commentId: number): string =>

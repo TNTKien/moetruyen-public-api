@@ -1,4 +1,4 @@
-import type { MangaDetail, MangaListQuery, MangaRandomQuery, MangaTopQuery } from "../contracts/manga.js";
+import { resolveMangaTopTime, type MangaDetail, type MangaListQuery, type MangaRandomQuery, type MangaTopQuery } from "../contracts/manga.js";
 import { mangaRepository } from "../repositories/manga.repository.js";
 
 export const mangaService = {
@@ -7,7 +7,10 @@ export const mangaService = {
   },
 
   listTopPublicManga(query: MangaTopQuery) {
-    return mangaRepository.listTopPublicManga(query);
+    return mangaRepository.listTopPublicManga({
+      ...query,
+      time: resolveMangaTopTime(query.sort_by, query.time),
+    });
   },
 
   listRandomPublicManga(query: MangaRandomQuery) {

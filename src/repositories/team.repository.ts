@@ -1,9 +1,8 @@
 import type { TeamListQuery, TeamMangaListQuery, TeamMember, TeamSummary, TeamUpdateItem, TeamUpdatesQuery } from "../contracts/team.js";
-import { env } from "../config/env.js";
 import { mangaRepository } from "./manga.repository.js";
 import { pool } from "../db/client.js";
 import { getPublicChapterAccess } from "../lib/chapter-access.js";
-import { formatNumericText, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
+import { buildTeamAvatarUrl, buildTeamCoverUrl, buildUserAvatarUrl, formatNumericText, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
 
 interface TeamRow {
   team_id: number;
@@ -64,24 +63,6 @@ const buildRoleLabel = (role: string): string => (role.trim().toLowerCase() === 
 const normalizeOptionalText = (value: string | null | undefined): string | null => {
   const text = (value ?? "").trim();
   return text.length > 0 ? text : null;
-};
-
-const normalizeOptionalUrl = (value: string | null | undefined): string | null => {
-  const text = normalizeOptionalText(value);
-
-  if (!text) {
-    return null;
-  }
-
-  try {
-    const url = new URL(text, env.PUBLIC_SITE_URL);
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return null;
-    }
-    return url.toString();
-  } catch {
-    return null;
-  }
 };
 
 const toNonNegativeInt = (value: string | number | null | undefined): number => {
@@ -155,8 +136,8 @@ const mapTeamSummary = (
   slug: teamRow.team_slug,
   name: teamRow.team_name,
   intro: normalizeOptionalText(teamRow.team_intro),
-  avatarUrl: normalizeOptionalUrl(teamRow.team_avatar_url),
-  coverUrl: normalizeOptionalUrl(teamRow.team_cover_url),
+  avatarUrl: buildTeamAvatarUrl(teamRow.team_avatar_url, teamRow.team_updated_at),
+  coverUrl: buildTeamCoverUrl(teamRow.team_cover_url, teamRow.team_updated_at),
   memberCount: toNonNegativeInt(options.memberCount),
   leaderCount: toNonNegativeInt(options.leaderCount),
   totalMangaCount: toNonNegativeInt(options.mangaCount),
@@ -422,7 +403,7 @@ export class TeamRepository {
     return rows.map((row) => ({
       username: row.username,
       displayName: normalizeOptionalText(row.display_name),
-      avatarUrl: normalizeOptionalUrl(row.avatar_url),
+      avatarUrl: buildUserAvatarUrl(row.avatar_url),
       role: row.role,
       roleLabel: buildRoleLabel(row.role),
     }));

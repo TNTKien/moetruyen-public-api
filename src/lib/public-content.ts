@@ -99,6 +99,30 @@ export const buildCoverUrl = (cover: string | null | undefined, coverUpdatedAt: 
   return appendCacheToken(buildAbsoluteUrl(cover, env.COVER_BASE_URL), coverUpdatedAt);
 };
 
+export const buildUserAvatarUrl = (avatar: string | null | undefined, avatarUpdatedAt?: string | number | null | undefined): string | null => {
+  if (!avatar) {
+    return null;
+  }
+
+  return appendCacheToken(buildAbsoluteUrl(avatar, env.USER_AVATAR_BASE_URL), avatarUpdatedAt);
+};
+
+export const buildTeamAvatarUrl = (avatar: string | null | undefined, avatarUpdatedAt?: string | number | null | undefined): string | null => {
+  if (!avatar) {
+    return null;
+  }
+
+  return appendCacheToken(buildAbsoluteUrl(avatar, env.TEAM_AVATAR_BASE_URL), avatarUpdatedAt);
+};
+
+export const buildTeamCoverUrl = (cover: string | null | undefined, coverUpdatedAt?: string | number | null | undefined): string | null => {
+  if (!cover) {
+    return null;
+  }
+
+  return appendCacheToken(buildAbsoluteUrl(cover, env.TEAM_COVER_BASE_URL), coverUpdatedAt);
+};
+
 export const buildChapterAssetUrl = (path: string | null | undefined, pagesUpdatedAt?: string | number | null | undefined): string | null => {
   if (!path) {
     return null;

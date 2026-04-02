@@ -51,18 +51,20 @@ export const mangaListItemSchema = z.object({
 export const mangaTopTimeSchema = z.enum(["24h", "7d", "30d", "all_time"]).describe(
   "Time window used for ranking. `24h`, `7d`, `30d`, or `all_time`.",
 );
-export const mangaTopSortBySchema = z.enum(["views"]).describe("Current ranking metric. Only `views` is supported.");
+export const mangaTopSortBySchema = z.enum(["views", "bookmarks", "comments"]).describe(
+  "Current ranking metric. Supported values: `views`, `bookmarks`, and `comments`.",
+);
 
 export const mangaTopQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1).describe("Page number starting from `1`."),
   limit: z.coerce.number().int().min(1).max(100).default(10).describe("Maximum number of ranked manga items to return per page. Allowed range: `1` to `100`."),
-  sort_by: mangaTopSortBySchema.default("views").describe("Ranking metric. Currently only `views` is available."),
-  time: mangaTopTimeSchema.default("24h").describe("Ranking window. Use `24h`, `7d`, `30d`, or `all_time`."),
+  sort_by: mangaTopSortBySchema.default("views").describe("Ranking metric. Use `views`, `bookmarks`, or `comments`."),
+  time: mangaTopTimeSchema.optional().describe("Ranking window. Use `24h`, `7d`, `30d`, or `all_time`. Omit it to default to `24h` for `views`, or `all_time` for `bookmarks` and `comments`."),
 });
 
 export const mangaTopItemSchema = mangaListItemSchema.extend({
   rank: z.number().int().positive(),
-  totalViews: z.number().int().nonnegative(),
+  rankingValue: z.number().int().nonnegative(),
 });
 
 export const mangaDetailSchema = mangaListItemSchema.extend({
@@ -88,3 +90,6 @@ export type MangaTopItem = z.infer<typeof mangaTopItemSchema>;
 export type MangaDetail = z.infer<typeof mangaDetailSchema>;
 export type MangaIdParams = z.infer<typeof mangaIdParamsSchema>;
 export type MangaRandomQuery = z.infer<typeof mangaRandomQuerySchema>;
+
+export const resolveMangaTopTime = (sortBy: MangaTopSortBy, time: MangaTopTime | undefined): MangaTopTime =>
+  time ?? (sortBy === "views" ? "24h" : "all_time");

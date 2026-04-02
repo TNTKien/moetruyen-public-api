@@ -146,6 +146,14 @@ export const mangaV2DetailQuerySchema = z.object({
 
 export const mangaV2TopQuerySchema = mangaTopQuerySchema.extend({
   include: mangaV2IncludeQuerySchema,
+}).superRefine((query, ctx) => {
+  if ((query.sort_by === "bookmarks" || query.sort_by === "comments") && query.time !== undefined && query.time !== "all_time") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["time"],
+      message: "`time=all_time` is required when `sort_by=bookmarks|comments`.",
+    });
+  }
 });
 
 export const mangaV2RandomQuerySchema = mangaRandomQuerySchema.extend({

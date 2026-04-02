@@ -1,4 +1,4 @@
-import type { GenreSummary, MangaListItem } from "../contracts/manga.js";
+import { resolveMangaTopTime, type GenreSummary, type MangaListItem } from "../contracts/manga.js";
 import type { MangaV2Base, MangaV2Include, MangaV2Item, MangaV2RandomQuery, MangaV2SearchQuery, MangaV2Stats, MangaV2TeamMangaQuery, MangaV2TopItem, MangaV2TopQuery } from "../contracts/manga-v2.js";
 import { mangaRepository } from "../repositories/manga.repository.js";
 import { mangaService } from "./manga.service.js";
@@ -89,7 +89,13 @@ export const mangaV2Service = {
   },
 
   async listTopPublicManga(query: MangaV2TopQuery): Promise<{ items: MangaV2TopItem[]; total: number }> {
-    const result = await mangaService.listTopPublicManga(query);
+    const normalizedTime = resolveMangaTopTime(query.sort_by, query.time);
+    const normalizedQuery = {
+      ...query,
+      time: normalizedTime,
+    };
+
+    const result = await mangaService.listTopPublicManga(normalizedQuery);
     const statsById = await buildStatsById(result.items, query.include);
 
     return {
@@ -97,9 +103,9 @@ export const mangaV2Service = {
         ...buildMangaV2Item(item, query.include, statsById?.get(item.id)),
         ranking: {
           rank: item.rank,
-          sortBy: query.sort_by,
-          time: query.time,
-          value: item.totalViews,
+          sortBy: normalizedQuery.sort_by,
+          time: normalizedQuery.time,
+          value: item.rankingValue,
         },
       })),
       total: result.total,
