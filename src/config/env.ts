@@ -13,6 +13,9 @@ const envSchema = z.object({
   PUBLIC_SITE_URL: z.string().url().default("https://example.com"),
   CHAPTER_CDN_BASE_URL: z.string().url().default("https://i.moetruyen.net"),
   COVER_BASE_URL: z.string().url().default("https://moetruyen.net"),
+  USER_AVATAR_BASE_URL: z.string().url().default("https://moetruyen.net"),
+  TEAM_AVATAR_BASE_URL: z.string().url().default("https://moetruyen.net"),
+  TEAM_COVER_BASE_URL: z.string().url().default("https://moetruyen.net"),
   ALLOWED_ORIGINS: z.string().default("https://example.com"),
   RATE_LIMIT_ENABLED: z
     .enum(["true", "false"])
