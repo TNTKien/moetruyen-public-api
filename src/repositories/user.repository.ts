@@ -1,7 +1,6 @@
 import type { UserCommentItem, UserCommentsQuery, UserSummary } from "../contracts/user.js";
-import { env } from "../config/env.js";
 import { pool } from "../db/client.js";
-import { formatNumericText, toIsoDateString } from "../lib/public-content.js";
+import { buildUserAvatarUrl, formatNumericText, toIsoDateString } from "../lib/public-content.js";
 
 interface UserProfileRow {
   id: string;
@@ -49,24 +48,6 @@ const buildRoleLabel = (role: string): string => (role.trim().toLowerCase() === 
 const normalizeOptionalText = (value: string | null | undefined): string | null => {
   const text = (value ?? "").trim();
   return text.length > 0 ? text : null;
-};
-
-const normalizeOptionalUrl = (value: string | null | undefined): string | null => {
-  const text = normalizeOptionalText(value);
-
-  if (!text) {
-    return null;
-  }
-
-  try {
-    const url = new URL(text, env.PUBLIC_SITE_URL);
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return null;
-    }
-    return url.toString();
-  } catch {
-    return null;
-  }
 };
 
 const toNonNegativeInt = (value: string | number | null | undefined): number => {
@@ -253,7 +234,7 @@ export class UserRepository {
     return {
       username: userRow.username,
       displayName: normalizeOptionalText(userRow.display_name),
-      avatarUrl: normalizeOptionalUrl(userRow.avatar_url),
+      avatarUrl: buildUserAvatarUrl(userRow.avatar_url),
       bio: normalizeOptionalText(userRow.bio),
       joinedAt: toIsoDateString(userRow.created_at),
       commentCount,
