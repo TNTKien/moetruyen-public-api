@@ -19,6 +19,7 @@ const { userService } = await import("../src/services/user.service.js");
 
 const originals = {
   listPublicChaptersByMangaId: chapterService.listPublicChaptersByMangaId,
+  listAggregatePublicChaptersByMangaId: chapterService.listAggregatePublicChaptersByMangaId,
   getPublicChapterReaderById: chapterService.getPublicChapterReaderById,
   listRecentPublicComments: commentService.listRecentPublicComments,
   listPublicMangaCommentsByMangaId: commentService.listPublicMangaCommentsByMangaId,
@@ -34,6 +35,7 @@ const originals = {
 
 afterEach(() => {
   chapterService.listPublicChaptersByMangaId = originals.listPublicChaptersByMangaId;
+  chapterService.listAggregatePublicChaptersByMangaId = originals.listAggregatePublicChaptersByMangaId;
   chapterService.getPublicChapterReaderById = originals.getPublicChapterReaderById;
   commentService.listRecentPublicComments = originals.listRecentPublicComments;
   commentService.listPublicMangaCommentsByMangaId = originals.listPublicMangaCommentsByMangaId;
@@ -49,18 +51,69 @@ afterEach(() => {
 
 describe("public api v2 mirrored routes", () => {
   it("returns v2 manga chapter list", async () => {
-    chapterService.listPublicChaptersByMangaId = async () => ({
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    chapterService.listPublicChaptersByMangaId = async (_mangaId, query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return {
+        manga: {
+          id: 1,
+          slug: "sample-manga",
+          title: "Sample Manga",
+        },
+        chapters: [],
+        total: 35,
+      };
+    };
+
+    const response = await app.request("http://local/v2/manga/1/chapters?page=2&limit=10");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(receivedQuery).toMatchObject({
+      page: 2,
+      limit: 10,
+    });
+    expect(body.meta.pagination).toEqual({
+      page: 2,
+      limit: 10,
+      total: 35,
+      totalPages: 4,
+    });
+  });
+
+  it("returns v2 aggregate manga chapter list", async () => {
+    chapterService.listAggregatePublicChaptersByMangaId = async () => ({
       manga: {
         id: 1,
         slug: "sample-manga",
         title: "Sample Manga",
       },
-      chapters: [],
+      chapters: [
+        {
+          id: 99,
+          number: 3,
+          numberText: "3.000",
+          title: "Chapter 3",
+          date: "2026-03-22T10:47:03.891Z",
+          access: "public",
+        },
+      ],
     });
 
-    const response = await app.request("http://local/v2/manga/1/chapters");
+    const response = await app.request("http://local/v2/manga/1/chapters/aggregate");
+    const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(body.data.chapters[0]).toEqual({
+      id: 99,
+      number: 3,
+      numberText: "3.000",
+      title: "Chapter 3",
+      date: "2026-03-22T10:47:03.891Z",
+      access: "public",
+    });
   });
 
   it("returns v2 chapter reader payload", async () => {

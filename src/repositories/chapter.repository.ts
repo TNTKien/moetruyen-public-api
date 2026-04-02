@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 
-import type { ChapterReader, MangaChapterList } from "../contracts/chapter.js";
+import type { ChapterAggregateItem, ChapterItem, ChapterListQuery, ChapterReader, MangaChapterAggregateList, PaginatedMangaChapterListResult } from "../contracts/chapter.js";
 import { db } from "../db/client.js";
 import { chapters } from "../db/schema/chapters.js";
 import { manga } from "../db/schema/manga.js";
@@ -31,9 +31,71 @@ const chapterViewCountExpr = sql<number>`
   )
 `.mapWith(Number);
 
+const chapterCountExpr = sql<number>`count(*)`.mapWith(Number);
+
+const normalizeChapterDateInput = (value: string | Date | null): string | null => {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  return value;
+};
+
+const mapChapterListItem = (
+  chapter: {
+    id: number;
+    number: string;
+    title: string | null;
+    date: string | Date | null;
+    pages: number | null;
+    groupName: string | null;
+    viewCount: number;
+    passwordHash: string | null;
+    isOneshot: boolean;
+  },
+  mangaOneshotLocked: boolean,
+): ChapterItem => ({
+  id: chapter.id,
+  number: parseNumericValue(chapter.number) ?? 0,
+  numberText: formatNumericText(chapter.number),
+  title: chapter.title,
+  date: toIsoDateString(normalizeChapterDateInput(chapter.date)),
+  pages: chapter.pages,
+  groupName: chapter.groupName,
+  viewCount: chapter.viewCount,
+  access: getPublicChapterAccess({
+    chapterPasswordHash: chapter.passwordHash,
+    chapterIsOneshot: chapter.isOneshot,
+    mangaOneshotLocked,
+  }),
+});
+
+const mapChapterAggregateItem = (
+  chapter: {
+    id: number;
+    number: string;
+    title: string | null;
+    date: string | Date | null;
+    passwordHash: string | null;
+    isOneshot: boolean;
+  },
+  mangaOneshotLocked: boolean,
+): ChapterAggregateItem => ({
+  id: chapter.id,
+  number: parseNumericValue(chapter.number) ?? 0,
+  numberText: formatNumericText(chapter.number),
+  title: chapter.title,
+  date: toIsoDateString(normalizeChapterDateInput(chapter.date)),
+  access: getPublicChapterAccess({
+    chapterPasswordHash: chapter.passwordHash,
+    chapterIsOneshot: chapter.isOneshot,
+    mangaOneshotLocked,
+  }),
+});
+
 export class ChapterRepository {
-  async listPublicChaptersByMangaId(mangaId: number): Promise<MangaChapterList | null> {
-    const mangaItem = await db
+  private async findPublicMangaChapterHeader(mangaId: number) {
+    return db
       .select({
         id: manga.id,
         slug: manga.slug,
@@ -44,6 +106,55 @@ export class ChapterRepository {
       .where(and(eq(manga.id, mangaId), eq(manga.isHidden, 0)))
       .limit(1)
       .then((rows) => rows[0] ?? null);
+  }
+
+  async listPublicChaptersByMangaId(mangaId: number, query: ChapterListQuery): Promise<PaginatedMangaChapterListResult | null> {
+    const mangaRow = await this.findPublicMangaChapterHeader(mangaId);
+
+    if (!mangaRow) {
+      return null;
+    }
+
+    const offset = (query.page - 1) * query.limit;
+
+    const [countRow, chapterItems] = await Promise.all([
+      db
+        .select({ total: chapterCountExpr })
+        .from(chapters)
+        .where(eq(chapters.mangaId, mangaRow.id))
+        .then((rows) => rows[0]?.total ?? 0),
+      db
+        .select({
+          id: chapters.id,
+          number: chapters.number,
+          title: chapters.title,
+          date: chapters.date,
+          pages: chapters.pages,
+          groupName: chapters.groupName,
+          viewCount: chapterViewCountExpr,
+          passwordHash: chapters.passwordHash,
+          isOneshot: chapters.isOneshot,
+        })
+        .from(chapters)
+        .where(eq(chapters.mangaId, mangaRow.id))
+        .orderBy(desc(chapters.number), desc(chapters.id))
+        .limit(query.limit)
+        .offset(offset),
+    ]);
+
+    return {
+      manga: {
+        id: mangaRow.id,
+        slug: mangaRow.slug,
+        title: mangaRow.title,
+      },
+      chapters: chapterItems.map((chapter) => mapChapterListItem(chapter, mangaRow.oneshotLocked)),
+      total: countRow,
+    };
+  }
+
+  async listAggregatePublicChaptersByMangaId(mangaId: number): Promise<MangaChapterAggregateList | null> {
+    const mangaItem = await this.findPublicMangaChapterHeader(mangaId);
 
     if (!mangaItem) {
       return null;
@@ -55,9 +166,6 @@ export class ChapterRepository {
         number: chapters.number,
         title: chapters.title,
         date: chapters.date,
-        pages: chapters.pages,
-        groupName: chapters.groupName,
-        viewCount: chapterViewCountExpr,
         passwordHash: chapters.passwordHash,
         isOneshot: chapters.isOneshot,
       })
@@ -71,21 +179,7 @@ export class ChapterRepository {
         slug: mangaItem.slug,
         title: mangaItem.title,
       },
-      chapters: chapterItems.map((chapter) => ({
-        id: chapter.id,
-        number: parseNumericValue(chapter.number) ?? 0,
-        numberText: formatNumericText(chapter.number),
-        title: chapter.title,
-        date: toIsoDateString(chapter.date),
-        pages: chapter.pages,
-        groupName: chapter.groupName,
-        viewCount: chapter.viewCount,
-        access: getPublicChapterAccess({
-          chapterPasswordHash: chapter.passwordHash,
-          chapterIsOneshot: chapter.isOneshot,
-          mangaOneshotLocked: mangaItem.oneshotLocked,
-        }),
-      })),
+      chapters: chapterItems.map((chapter) => mapChapterAggregateItem(chapter, mangaItem.oneshotLocked)),
     };
   }
 
