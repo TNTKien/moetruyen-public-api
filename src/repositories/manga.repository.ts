@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 
-import type { MangaDetail, MangaListItem, MangaListQuery, MangaRandomQuery, MangaTopItem, MangaTopQuery, MangaTopTime } from "../contracts/manga.js";
+import { resolveMangaTopTime, type MangaDetail, type MangaListItem, type MangaListQuery, type MangaRandomQuery, type MangaTopItem, type MangaTopQuery, type MangaTopTime } from "../contracts/manga.js";
 import type { MangaV2ListQuery, MangaV2TeamMangaQuery } from "../contracts/manga-v2.js";
 import { pool } from "../db/client.js";
 import type { SearchMangaItem, SearchMangaQuery } from "../contracts/search.js";
@@ -36,7 +36,7 @@ export interface PublicMangaStats {
 
 interface TopMangaQueryRow {
   manga_id: number;
-  manga_views: string | number;
+  ranking_value: string | number;
 }
 
 const VIEW_STATS_TIMEZONE = "Asia/Ho_Chi_Minh";
@@ -597,7 +597,7 @@ export class MangaRepository {
     return this.listPublicMangaWithConditions(query, conditions);
   }
 
-  private async listTopPublicMangaByViews(query: MangaTopQuery): Promise<PublicTopMangaListResult> {
+  private async listTopPublicMangaByViews(query: MangaTopQuery & { time: MangaTopTime }): Promise<PublicTopMangaListResult> {
     const offset = (query.page - 1) * query.limit;
     const sinceDate = buildTopMangaSinceDate(query.time);
 
@@ -614,7 +614,7 @@ export class MangaRepository {
           ranked AS (
             SELECT
               m.id AS manga_id,
-              COALESCE(chapter_totals.chapter_total_views, 0)::bigint AS manga_views
+              COALESCE(chapter_totals.chapter_total_views, 0)::bigint AS ranking_value
             FROM manga m
             LEFT JOIN chapter_totals ON chapter_totals.manga_id = m.id
             WHERE COALESCE(m.is_hidden, 0) = 0
@@ -646,7 +646,7 @@ export class MangaRepository {
               LEAST(
                 COALESCE(period_totals.period_views, 0),
                 COALESCE(chapter_totals.chapter_total_views, 0)
-              )::bigint AS manga_views
+              )::bigint AS ranking_value
             FROM manga m
             LEFT JOIN period_totals ON period_totals.manga_id = m.id
             LEFT JOIN chapter_totals ON chapter_totals.manga_id = m.id
@@ -671,15 +671,15 @@ export class MangaRepository {
           ranked AS (
             SELECT
               m.id AS manga_id,
-              COALESCE(chapter_totals.chapter_total_views, 0)::bigint AS manga_views
+              COALESCE(chapter_totals.chapter_total_views, 0)::bigint AS ranking_value
             FROM manga m
             LEFT JOIN chapter_totals ON chapter_totals.manga_id = m.id
             WHERE COALESCE(m.is_hidden, 0) = 0
               AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
           )
-          SELECT manga_id, manga_views
+          SELECT manga_id, ranking_value
           FROM ranked
-          ORDER BY manga_views DESC, manga_id DESC
+          ORDER BY ranking_value DESC, manga_id DESC
           LIMIT $1 OFFSET $2
         `
       : `
@@ -705,7 +705,7 @@ export class MangaRepository {
               LEAST(
                 COALESCE(period_totals.period_views, 0),
                 COALESCE(chapter_totals.chapter_total_views, 0)
-              )::bigint AS manga_views
+              )::bigint AS ranking_value
             FROM manga m
             LEFT JOIN period_totals ON period_totals.manga_id = m.id
             LEFT JOIN chapter_totals ON chapter_totals.manga_id = m.id
@@ -713,9 +713,9 @@ export class MangaRepository {
               AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
               AND COALESCE(period_totals.period_views, 0) > 0
           )
-          SELECT manga_id, manga_views
+          SELECT manga_id, ranking_value
           FROM ranked
-          ORDER BY manga_views DESC, manga_id DESC
+          ORDER BY ranking_value DESC, manga_id DESC
           LIMIT $2 OFFSET $3
         `;
 
@@ -748,7 +748,7 @@ export class MangaRepository {
 
         return [mangaId, {
           rank: offset + index + 1,
-          totalViews: Number(row.manga_views) || 0,
+          rankingValue: Number(row.ranking_value) || 0,
         }];
       }),
     );
@@ -769,7 +769,231 @@ export class MangaRepository {
           return {
             ...item,
             rank: rankingMeta.rank,
-            totalViews: rankingMeta.totalViews,
+            rankingValue: rankingMeta.rankingValue,
+          } satisfies MangaTopItem;
+        })
+        .filter((item): item is MangaTopItem => item !== null),
+      total,
+    };
+  }
+
+  private async listTopPublicMangaByBookmarks(query: MangaTopQuery & { time: MangaTopTime }): Promise<PublicTopMangaListResult> {
+    const offset = (query.page - 1) * query.limit;
+
+    const totalResult = await pool.query<{ total: string | number }>(`
+      WITH bookmark_totals AS (
+        SELECT
+          source.manga_id,
+          COUNT(DISTINCT source.user_id)::bigint AS bookmark_count
+        FROM (
+          SELECT mb.manga_id, mb.user_id
+          FROM manga_bookmarks mb
+
+          UNION
+
+          SELECT li.manga_id, l.user_id
+          FROM manga_bookmark_list_items li
+          JOIN manga_bookmark_lists l ON l.id = li.list_id
+        ) source
+        WHERE source.user_id IS NOT NULL
+          AND TRIM(source.user_id) <> ''
+        GROUP BY source.manga_id
+      ),
+      ranked AS (
+        SELECT
+          m.id AS manga_id,
+          COALESCE(bookmark_totals.bookmark_count, 0)::bigint AS ranking_value
+        FROM manga m
+        LEFT JOIN bookmark_totals ON bookmark_totals.manga_id = m.id
+        WHERE COALESCE(m.is_hidden, 0) = 0
+          AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
+      )
+      SELECT COUNT(*)::bigint AS total
+      FROM ranked
+    `);
+
+    const total = Number(totalResult.rows[0]?.total) || 0;
+
+    if (total === 0) {
+      return {
+        items: [],
+        total: 0,
+      };
+    }
+
+    const rankingResult = await pool.query<TopMangaQueryRow>(
+      `
+        WITH bookmark_totals AS (
+          SELECT
+            source.manga_id,
+            COUNT(DISTINCT source.user_id)::bigint AS bookmark_count
+          FROM (
+            SELECT mb.manga_id, mb.user_id
+            FROM manga_bookmarks mb
+
+            UNION
+
+            SELECT li.manga_id, l.user_id
+            FROM manga_bookmark_list_items li
+            JOIN manga_bookmark_lists l ON l.id = li.list_id
+          ) source
+          WHERE source.user_id IS NOT NULL
+            AND TRIM(source.user_id) <> ''
+          GROUP BY source.manga_id
+        ),
+        ranked AS (
+          SELECT
+            m.id AS manga_id,
+            COALESCE(bookmark_totals.bookmark_count, 0)::bigint AS ranking_value
+          FROM manga m
+          LEFT JOIN bookmark_totals ON bookmark_totals.manga_id = m.id
+          WHERE COALESCE(m.is_hidden, 0) = 0
+            AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
+        )
+        SELECT manga_id, ranking_value
+        FROM ranked
+        ORDER BY ranking_value DESC, manga_id DESC
+        LIMIT $1 OFFSET $2
+      `,
+      [query.limit, offset],
+    );
+
+    const rankedRows = rankingResult.rows;
+    const rankedIds = rankedRows
+      .map((row) => Number(row.manga_id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+      .map((id) => Math.floor(id));
+
+    const rankingMetaById = new Map(
+      rankedRows.map((row, index) => {
+        const mangaId = Math.floor(Number(row.manga_id));
+
+        return [mangaId, {
+          rank: offset + index + 1,
+          rankingValue: Number(row.ranking_value) || 0,
+        }];
+      }),
+    );
+
+    const mangaItems = await this.listPublicMangaByIds(rankedIds);
+    const mangaById = new Map(mangaItems.map((item) => [item.id, item]));
+
+    return {
+      items: rankedIds
+        .map((id) => {
+          const item = mangaById.get(id);
+          const rankingMeta = rankingMetaById.get(id);
+
+          if (!item || !rankingMeta) {
+            return null;
+          }
+
+          return {
+            ...item,
+            rank: rankingMeta.rank,
+            rankingValue: rankingMeta.rankingValue,
+          } satisfies MangaTopItem;
+        })
+        .filter((item): item is MangaTopItem => item !== null),
+      total,
+    };
+  }
+
+  private async listTopPublicMangaByComments(query: MangaTopQuery & { time: MangaTopTime }): Promise<PublicTopMangaListResult> {
+    const offset = (query.page - 1) * query.limit;
+
+    const totalResult = await pool.query<{ total: string | number }>(`
+      WITH comment_totals AS (
+        SELECT
+          c.manga_id,
+          COUNT(*)::bigint AS comment_count
+        FROM comments c
+        WHERE c.status = 'visible'
+        GROUP BY c.manga_id
+      ),
+      ranked AS (
+        SELECT
+          m.id AS manga_id,
+          COALESCE(comment_totals.comment_count, 0)::bigint AS ranking_value
+        FROM manga m
+        LEFT JOIN comment_totals ON comment_totals.manga_id = m.id
+        WHERE COALESCE(m.is_hidden, 0) = 0
+          AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
+      )
+      SELECT COUNT(*)::bigint AS total
+      FROM ranked
+    `);
+
+    const total = Number(totalResult.rows[0]?.total) || 0;
+
+    if (total === 0) {
+      return {
+        items: [],
+        total: 0,
+      };
+    }
+
+    const rankingResult = await pool.query<TopMangaQueryRow>(
+      `
+        WITH comment_totals AS (
+          SELECT
+            c.manga_id,
+            COUNT(*)::bigint AS comment_count
+          FROM comments c
+          WHERE c.status = 'visible'
+          GROUP BY c.manga_id
+        ),
+        ranked AS (
+          SELECT
+            m.id AS manga_id,
+            COALESCE(comment_totals.comment_count, 0)::bigint AS ranking_value
+          FROM manga m
+          LEFT JOIN comment_totals ON comment_totals.manga_id = m.id
+          WHERE COALESCE(m.is_hidden, 0) = 0
+            AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
+        )
+        SELECT manga_id, ranking_value
+        FROM ranked
+        ORDER BY ranking_value DESC, manga_id DESC
+        LIMIT $1 OFFSET $2
+      `,
+      [query.limit, offset],
+    );
+
+    const rankedRows = rankingResult.rows;
+    const rankedIds = rankedRows
+      .map((row) => Number(row.manga_id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+      .map((id) => Math.floor(id));
+
+    const rankingMetaById = new Map(
+      rankedRows.map((row, index) => {
+        const mangaId = Math.floor(Number(row.manga_id));
+
+        return [mangaId, {
+          rank: offset + index + 1,
+          rankingValue: Number(row.ranking_value) || 0,
+        }];
+      }),
+    );
+
+    const mangaItems = await this.listPublicMangaByIds(rankedIds);
+    const mangaById = new Map(mangaItems.map((item) => [item.id, item]));
+
+    return {
+      items: rankedIds
+        .map((id) => {
+          const item = mangaById.get(id);
+          const rankingMeta = rankingMetaById.get(id);
+
+          if (!item || !rankingMeta) {
+            return null;
+          }
+
+          return {
+            ...item,
+            rank: rankingMeta.rank,
+            rankingValue: rankingMeta.rankingValue,
           } satisfies MangaTopItem;
         })
         .filter((item): item is MangaTopItem => item !== null),
@@ -778,9 +1002,18 @@ export class MangaRepository {
   }
 
   async listTopPublicManga(query: MangaTopQuery): Promise<PublicTopMangaListResult> {
-    switch (query.sort_by) {
+    const normalizedQuery = {
+      ...query,
+      time: resolveMangaTopTime(query.sort_by, query.time),
+    };
+
+    switch (normalizedQuery.sort_by) {
+      case "comments":
+        return this.listTopPublicMangaByComments(normalizedQuery);
+      case "bookmarks":
+        return this.listTopPublicMangaByBookmarks(normalizedQuery);
       case "views":
-        return this.listTopPublicMangaByViews(query);
+        return this.listTopPublicMangaByViews(normalizedQuery);
     }
   }
 
