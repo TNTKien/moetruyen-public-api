@@ -191,6 +191,138 @@ describe("public api manga v2 routes", () => {
     });
   });
 
+  it("accepts bookmark ranking for all_time top manga", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    mangaV2Service.listTopPublicManga = async (query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return {
+        items: [
+          {
+            ...baseItem,
+            ranking: {
+              rank: 1,
+              sortBy: "bookmarks",
+              time: "all_time",
+              value: 321,
+            },
+          },
+        ],
+        total: 1,
+      };
+    };
+
+    const response = await app.request("http://local/v2/manga/top?sort_by=bookmarks&time=all_time");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(receivedQuery).toMatchObject({
+      sort_by: "bookmarks",
+      time: "all_time",
+    });
+    expect(body.data[0].ranking).toEqual({
+      rank: 1,
+      sortBy: "bookmarks",
+      time: "all_time",
+      value: 321,
+    });
+  });
+
+  it("accepts bookmark ranking without an explicit time", async () => {
+    mangaV2Service.listTopPublicManga = async () => ({
+      items: [
+        {
+          ...baseItem,
+          ranking: {
+            rank: 1,
+            sortBy: "bookmarks",
+            time: "all_time",
+            value: 321,
+          },
+        },
+      ],
+      total: 1,
+    });
+
+    const response = await app.request("http://local/v2/manga/top?sort_by=bookmarks");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data[0].ranking).toEqual({
+      rank: 1,
+      sortBy: "bookmarks",
+      time: "all_time",
+      value: 321,
+    });
+  });
+
+  it("accepts comments ranking for all_time top manga", async () => {
+    let receivedQuery: Record<string, unknown> | undefined;
+
+    mangaV2Service.listTopPublicManga = async (query) => {
+      receivedQuery = query as Record<string, unknown>;
+
+      return {
+        items: [
+          {
+            ...baseItem,
+            ranking: {
+              rank: 1,
+              sortBy: "comments",
+              time: "all_time",
+              value: 222,
+            },
+          },
+        ],
+        total: 1,
+      };
+    };
+
+    const response = await app.request("http://local/v2/manga/top?sort_by=comments&time=all_time");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(receivedQuery).toMatchObject({
+      sort_by: "comments",
+      time: "all_time",
+    });
+    expect(body.data[0].ranking).toEqual({
+      rank: 1,
+      sortBy: "comments",
+      time: "all_time",
+      value: 222,
+    });
+  });
+
+  it("accepts comments ranking without an explicit time", async () => {
+    mangaV2Service.listTopPublicManga = async () => ({
+      items: [
+        {
+          ...baseItem,
+          ranking: {
+            rank: 1,
+            sortBy: "comments",
+            time: "all_time",
+            value: 222,
+          },
+        },
+      ],
+      total: 1,
+    });
+
+    const response = await app.request("http://local/v2/manga/top?sort_by=comments");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data[0].ranking).toEqual({
+      rank: 1,
+      sortBy: "comments",
+      time: "all_time",
+      value: 222,
+    });
+  });
+
   it("returns v2 search manga using the shared base shape", async () => {
     mangaV2Service.searchPublicManga = async () => [baseItem];
 
@@ -230,6 +362,22 @@ describe("public api manga v2 routes", () => {
 
   it("validates unsupported include values", async () => {
     const response = await app.request("http://local/v2/manga?include=authors");
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("rejects bookmark ranking for non-all_time windows", async () => {
+    const response = await app.request("http://local/v2/manga/top?sort_by=bookmarks&time=7d");
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("rejects comments ranking for non-all_time windows", async () => {
+    const response = await app.request("http://local/v2/manga/top?sort_by=comments&time=7d");
     const body = await response.json();
 
     expect(response.status).toBe(400);
