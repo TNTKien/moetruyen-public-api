@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import { describeRoute, resolver, validator } from "hono-openapi";
 
-import { chapterReaderParamsSchema, chapterReaderSchema, mangaChapterListSchema } from "../contracts/chapter.js";
+import { chapterListQuerySchema, chapterReaderParamsSchema, chapterReaderSchema, mangaChapterAggregateListSchema, mangaChapterListSchema } from "../contracts/chapter.js";
 import { errorEnvelopeSchema, successEnvelopeSchema } from "../contracts/common.js";
 import { mangaIdParamsSchema } from "../contracts/manga.js";
 import { CACHE_CONTROL } from "../lib/cache.js";
 import { AppError } from "../lib/errors.js";
+import { getPaginationMeta } from "../lib/pagination.js";
 import type { AppBindings } from "../lib/request-id.js";
 import { jsonSuccess } from "../lib/response.js";
 import { validationHook } from "../lib/validation.js";
@@ -18,13 +19,76 @@ chapterRouteV2.get(
   describeRoute({
     tags: ["Manga"],
     summary: "List public manga chapters (v2)",
-    description: "Returns public chapter metadata for a manga id ordered by latest chapter first.",
+    description: "Returns paginated public chapter metadata for a manga id ordered by latest chapter first.",
     responses: {
       200: {
         description: "Manga chapters",
         content: {
           "application/json": {
             schema: resolver(successEnvelopeSchema(mangaChapterListSchema)),
+          },
+        },
+      },
+      400: {
+        description: "Invalid request parameters",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
+      404: {
+        description: "Manga not found",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
+    },
+  }),
+  validator("param", mangaIdParamsSchema, validationHook),
+  validator("query", chapterListQuerySchema, validationHook),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const query = c.req.valid("query");
+    const item = await chapterService.listPublicChaptersByMangaId(id, query);
+
+    if (!item) {
+      throw new AppError({
+        code: "MANGA_NOT_FOUND",
+        message: "Manga not found",
+        status: 404,
+      });
+    }
+
+    c.header("Cache-Control", CACHE_CONTROL.mangaChapters);
+
+    return jsonSuccess(
+      c,
+      {
+        manga: item.manga,
+        chapters: item.chapters,
+      },
+      {
+        pagination: getPaginationMeta({ page: query.page, limit: query.limit }, item.total),
+      },
+    );
+  },
+);
+
+chapterRouteV2.get(
+  "/manga/:id/chapters/aggregate",
+  describeRoute({
+    tags: ["Manga"],
+    summary: "List aggregate manga chapters (v2)",
+    description: "Returns the full lightweight chapter table-of-contents for a manga id ordered by latest chapter first.",
+    responses: {
+      200: {
+        description: "Aggregate manga chapter list",
+        content: {
+          "application/json": {
+            schema: resolver(successEnvelopeSchema(mangaChapterAggregateListSchema)),
           },
         },
       },
@@ -41,7 +105,7 @@ chapterRouteV2.get(
   validator("param", mangaIdParamsSchema, validationHook),
   async (c) => {
     const { id } = c.req.valid("param");
-    const item = await chapterService.listPublicChaptersByMangaId(id);
+    const item = await chapterService.listAggregatePublicChaptersByMangaId(id);
 
     if (!item) {
       throw new AppError({
