@@ -15,6 +15,11 @@ export const genreSummarySchema = z.object({
   name: z.string().min(1),
 });
 
+export const groupSummarySchema = z.object({
+  id: z.number().int().positive(),
+  name: z.string().min(1),
+});
+
 export const mangaListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1).describe("Page number starting from `1`. Used with `limit` for pagination."),
   limit: z.coerce.number().int().min(1).max(100).default(20).describe("Maximum number of manga items to return per page. Allowed range: `1` to `100`."),
@@ -38,6 +43,8 @@ export const mangaListItemSchema = z.object({
   coverUrl: z.string().url().nullable(),
   coverUpdatedAt: z.string().datetime().nullable(),
   groupName: z.string().nullable(),
+  groups: z.array(groupSummarySchema),
+  altTitles: z.array(z.string().min(1)),
   createdAt: z.string().datetime().nullable(),
   updatedAt: z.string().datetime().nullable(),
   commentCount: z.number().int().nonnegative(),
@@ -81,6 +88,7 @@ export const mangaRandomQuerySchema = z.object({
 });
 
 export type GenreSummary = z.infer<typeof genreSummarySchema>;
+export type GroupSummary = z.infer<typeof groupSummarySchema>;
 export type MangaListQuery = z.infer<typeof mangaListQuerySchema>;
 export type MangaListItem = z.infer<typeof mangaListItemSchema>;
 export type MangaTopSortBy = z.infer<typeof mangaTopSortBySchema>;
