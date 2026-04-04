@@ -20,7 +20,7 @@ mangaRouteV2.get(
   describeRoute({
     tags: ["Manga"],
     summary: "List top public manga (v2)",
-    description: "Returns paginated top manga using the shared v2 manga base shape. Use `sort_by=views` with `time=24h|7d|30d|all_time`, or `sort_by=bookmarks|comments` with `time=all_time`. If `time` is omitted, it defaults to `24h` for `views` and `all_time` for `bookmarks` or `comments`. Use `include=stats`, `include=genres`, or `include=stats,genres` to expand each manga item.",
+    description: "Returns paginated top manga using the shared v2 manga base shape. Use `sort_by=views` with `time=24h|7d|30d|all_time`, or `sort_by=bookmarks|comments` with `time=all_time`. If `time` is omitted, it defaults to `24h` for `views` and `all_time` for `bookmarks` or `comments`. Use `include=stats`, `include=genres`, `include=groups`, or combine them to expand each manga item.",
     responses: {
       200: {
         description: "Paginated top manga list",
@@ -58,7 +58,7 @@ mangaRouteV2.get(
   describeRoute({
     tags: ["Manga"],
     summary: "List random public manga (v2)",
-    description: "Returns 1 to 10 random public manga items using the shared v2 manga base shape. Use `include=stats`, `include=genres`, or `include=stats,genres` to expand each manga item.",
+    description: "Returns 1 to 10 random public manga items using the shared v2 manga base shape. Use `include=stats`, `include=genres`, `include=groups`, or combine them to expand each manga item.",
     responses: {
       200: {
         description: "Random manga list",
@@ -94,7 +94,7 @@ mangaRouteV2.get(
   describeRoute({
     tags: ["Manga"],
     summary: "List public manga (v2)",
-    description: "Returns paginated public manga using the shared v2 manga base shape. `genre` accepts comma-separated genre ids with OR semantics, `genrex` excludes manga that have any listed genre ids, and `include` controls optional expansions such as `stats` and `genres`.",
+    description: "Returns paginated public manga using the shared v2 manga base shape. `genre` accepts comma-separated genre ids with OR semantics, `genrex` excludes manga that have any listed genre ids, and `include` controls optional expansions such as `stats`, `genres`, and `groups`.",
     responses: {
       200: {
         description: "Paginated manga list",
@@ -132,7 +132,7 @@ mangaRouteV2.get(
   describeRoute({
     tags: ["Manga"],
     summary: "Get manga detail (v2)",
-    description: "Returns a single manga using the shared v2 manga base shape. Use `include=stats`, `include=genres`, or `include=stats,genres` to expand the response with optional aggregates and genre metadata.",
+    description: "Returns a single manga using the shared v2 manga base shape. Use `include=stats`, `include=genres`, `include=groups`, or combine them to expand the response with optional aggregates, genre metadata, and resolved translation team metadata.",
     responses: {
       200: {
         description: "Manga detail",
@@ -186,7 +186,7 @@ mangaRouteV2.get(
   describeRoute({
     tags: ["Search"],
     summary: "Search public manga (v2)",
-    description: "A light-weight search endpoint, use `/v2/manga` for full filtering support.",
+    description: "A light-weight search endpoint, use `/v2/manga` for full filtering support. `include` supports `stats`, `genres`, and `groups`.",
     responses: {
       200: {
         description: "Search results",
@@ -222,7 +222,7 @@ mangaRouteV2.get(
   describeRoute({
     tags: ["Teams"],
     summary: "List public team manga (v2)",
-    description: "Returns paginated manga associated with a team using the shared v2 manga base shape. `genre` accepts comma-separated genre ids with OR semantics, `genrex` excludes listed genre ids, and `include` controls optional `stats` and `genres` expansions.",
+    description: "Returns paginated manga associated with a team using the shared v2 manga base shape. `genre` accepts comma-separated genre ids with OR semantics, `genrex` excludes listed genre ids, and `include` controls optional `stats`, `genres`, and `groups` expansions.",
     responses: {
       200: {
         description: "Paginated team manga list",

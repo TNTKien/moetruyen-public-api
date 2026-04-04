@@ -129,6 +129,7 @@ describe("public api v2 mirrored routes", () => {
           pages: 2,
           access: "public",
           groupName: "Test Group",
+          groups: [{ id: 9, name: "Test Group" }],
           viewCount: 321,
           isOneshot: false,
         },
@@ -144,8 +145,10 @@ describe("public api v2 mirrored routes", () => {
     });
 
     const response = await app.request("http://local/v2/chapters/99");
+    const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(body.data.chapter.groups).toEqual([{ id: 9, name: "Test Group" }]);
   });
 
   it("returns v2 recent comments", async () => {

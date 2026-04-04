@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { mangaIdParamsSchema } from "./manga.js";
+import { groupSummarySchema, mangaIdParamsSchema } from "./manga.js";
 import { DEFAULT_LIMIT, DEFAULT_PAGE, MAX_LIMIT } from "../lib/pagination.js";
 
 export const chapterAccessSchema = z.enum(["public", "password_required", "locked"]);
@@ -19,6 +19,7 @@ export const chapterItemSchema = z.object({
   date: z.string().datetime().nullable(),
   pages: z.number().int().nonnegative().nullable(),
   groupName: z.string().nullable(),
+  groups: z.array(groupSummarySchema),
   viewCount: z.number().int().nonnegative(),
   access: chapterAccessSchema,
 });

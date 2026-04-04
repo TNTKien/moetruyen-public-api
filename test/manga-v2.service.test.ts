@@ -13,15 +13,18 @@ process.env.LOG_LEVEL = "info";
 const { mangaV2Service } = await import("../src/services/manga-v2.service.js");
 const { mangaService } = await import("../src/services/manga.service.js");
 const { mangaRepository } = await import("../src/repositories/manga.repository.js");
+const { teamRepository } = await import("../src/repositories/team.repository.js");
 
 const originals = {
   listTopPublicManga: mangaService.listTopPublicManga,
   getPublicMangaStatsByIds: mangaRepository.getPublicMangaStatsByIds,
+  resolvePublicGroupsByNames: teamRepository.resolvePublicGroupsByNames,
 };
 
 afterEach(() => {
   mangaService.listTopPublicManga = originals.listTopPublicManga;
   mangaRepository.getPublicMangaStatsByIds = originals.getPublicMangaStatsByIds;
+  teamRepository.resolvePublicGroupsByNames = originals.resolvePublicGroupsByNames;
 });
 
 const rankedTopItem = {
@@ -35,6 +38,8 @@ const rankedTopItem = {
   coverUrl: "https://moetruyen.net/uploads/covers/sample-manga.webp?t=123",
   coverUpdatedAt: "2026-03-22T10:47:03.891Z",
   groupName: "Test Team",
+  groups: [{ id: 7, name: "Test Team" }],
+  altTitles: ["Tên khác 1", "Tên khác 2"],
   createdAt: "2026-03-20T10:47:03.891Z",
   updatedAt: "2026-03-22T10:47:03.891Z",
   commentCount: 14,
@@ -53,6 +58,10 @@ describe("manga v2 service", () => {
       items: [rankedTopItem],
       total: 1,
     });
+
+    teamRepository.resolvePublicGroupsByNames = async () => new Map([
+      ["Test Team", [{ id: 7, name: "Test Team" }]],
+    ]);
 
     mangaRepository.getPublicMangaStatsByIds = async () => new Map([
       [
@@ -76,6 +85,7 @@ describe("manga v2 service", () => {
     expect(result.total).toBe(1);
     expect(result.items[0]).toMatchObject({
       id: 1,
+      altTitles: ["Tên khác 1", "Tên khác 2"],
       genres: [{ id: 1, name: "Action" }],
       stats: {
         commentCount: 14,
@@ -99,6 +109,10 @@ describe("manga v2 service", () => {
       }],
       total: query.time === "all_time" ? 1 : 0,
     });
+
+    teamRepository.resolvePublicGroupsByNames = async () => new Map([
+      ["Test Team", [{ id: 7, name: "Test Team" }]],
+    ]);
 
     mangaRepository.getPublicMangaStatsByIds = async () => new Map([
       [
@@ -129,6 +143,10 @@ describe("manga v2 service", () => {
       }],
       total: 1,
     });
+
+    teamRepository.resolvePublicGroupsByNames = async () => new Map([
+      ["Test Team", [{ id: 7, name: "Test Team" }]],
+    ]);
 
     mangaRepository.getPublicMangaStatsByIds = async () => new Map([
       [
@@ -166,6 +184,38 @@ describe("manga v2 service", () => {
     });
   });
 
+  it("includes groups only when requested", async () => {
+    mangaService.listTopPublicManga = async () => ({
+      items: [{
+        ...rankedTopItem,
+        rankingValue: 55,
+      }],
+      total: 1,
+    });
+
+    teamRepository.resolvePublicGroupsByNames = async () => new Map([
+      ["Test Team", [{ id: 7, name: "Test Team" }]],
+    ]);
+
+    mangaRepository.getPublicMangaStatsByIds = async () => new Map();
+
+    const result = await mangaV2Service.listTopPublicManga({
+      page: 1,
+      limit: 10,
+      sort_by: "bookmarks",
+      time: "all_time",
+      include: ["groups"],
+    });
+
+    expect(result.items[0]).toMatchObject({
+      groups: [{ id: 7, name: "Test Team" }],
+      altTitles: ["Tên khác 1", "Tên khác 2"],
+      ranking: {
+        sortBy: "bookmarks",
+      },
+    });
+  });
+
   it("defaults comments ranking time to all_time when omitted", async () => {
     mangaService.listTopPublicManga = async (query) => ({
       items: [{
@@ -174,6 +224,10 @@ describe("manga v2 service", () => {
       }],
       total: query.time === "all_time" ? 1 : 0,
     });
+
+    teamRepository.resolvePublicGroupsByNames = async () => new Map([
+      ["Test Team", [{ id: 7, name: "Test Team" }]],
+    ]);
 
     mangaRepository.getPublicMangaStatsByIds = async () => new Map([
       [

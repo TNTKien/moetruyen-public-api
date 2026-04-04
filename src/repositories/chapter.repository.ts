@@ -62,6 +62,7 @@ const mapChapterListItem = (
   date: toIsoDateString(normalizeChapterDateInput(chapter.date)),
   pages: chapter.pages,
   groupName: chapter.groupName,
+  groups: [],
   viewCount: chapter.viewCount,
   access: getPublicChapterAccess({
     chapterPasswordHash: chapter.passwordHash,
@@ -271,6 +272,7 @@ export class ChapterRepository {
             pages: chapterRow.chapterPages,
             access: "public",
             groupName: chapterRow.chapterGroupName,
+            groups: [],
             viewCount: chapterRow.chapterViewCount,
             isOneshot: chapterRow.chapterIsOneshot,
           },

@@ -43,6 +43,8 @@ const baseItem = {
   coverUrl: "https://moetruyen.net/uploads/covers/sample-manga.webp?t=123",
   coverUpdatedAt: "2026-03-22T10:47:03.891Z",
   groupName: "Test Team",
+  groups: [{ id: 7, name: "Test Team" }],
+  altTitles: ["Tên khác 1", "Tên khác 2"],
   createdAt: "2026-03-20T10:47:03.891Z",
   updatedAt: "2026-03-22T10:47:03.891Z",
   isOneshot: false,
@@ -57,7 +59,15 @@ describe("public api manga v2 routes", () => {
 
     mangaV2Service.listPublicManga = async (query) => {
       receivedQuery = query as Record<string, unknown>;
-      return { items: [baseItem], total: 1 };
+      return {
+        items: [
+          {
+            ...baseItem,
+            groups: undefined,
+          },
+        ],
+        total: 1,
+      };
     };
 
     const response = await app.request("http://local/v2/manga?genre=13,15");
@@ -69,9 +79,24 @@ describe("public api manga v2 routes", () => {
     expect(body.data[0]).toMatchObject({
       slug: "sample-manga",
       groupName: "Test Team",
+      altTitles: ["Tên khác 1", "Tên khác 2"],
       chapterCount: 12,
     });
+    expect(body.data[0].groups).toBeUndefined();
     expect(body.data[0].stats).toBeUndefined();
+  });
+
+  it("returns v2 manga list with groups include", async () => {
+    mangaV2Service.listPublicManga = async () => ({
+      items: [baseItem],
+      total: 1,
+    });
+
+    const response = await app.request("http://local/v2/manga?include=groups");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data[0].groups).toEqual([{ id: 7, name: "Test Team" }]);
   });
 
   it("returns v2 manga list with stats include", async () => {
@@ -152,6 +177,7 @@ describe("public api manga v2 routes", () => {
   it("returns v2 manga detail with optional genres", async () => {
     mangaV2Service.getPublicMangaById = async () => ({
       ...baseItem,
+      groups: undefined,
       genres: [{ id: 10, name: "Drama" }],
     });
 
@@ -160,7 +186,19 @@ describe("public api manga v2 routes", () => {
 
     expect(response.status).toBe(200);
     expect(body.data.genres).toEqual([{ id: 10, name: "Drama" }]);
+    expect(body.data.altTitles).toEqual(["Tên khác 1", "Tên khác 2"]);
+    expect(body.data.groups).toBeUndefined();
     expect(body.data.stats).toBeUndefined();
+  });
+
+  it("returns v2 manga detail with optional groups", async () => {
+    mangaV2Service.getPublicMangaById = async () => baseItem;
+
+    const response = await app.request("http://local/v2/manga/1?include=groups");
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.groups).toEqual([{ id: 7, name: "Test Team" }]);
   });
 
   it("returns v2 top manga with ranking metadata", async () => {
