@@ -49,8 +49,8 @@ export const mangaV2GenreIdsSchema = z
   .transform((value, ctx) => parseGenreIdsValue(value as string | number | undefined, ctx))
   .describe("Comma-separated genre ids with OR semantics. Example: `13,15` returns manga that match at least one of those genre ids.");
 
-export const mangaV2IncludeItemSchema = z.enum(["stats", "genres"]).describe(
-  "Supported include expansion values. `stats` adds aggregate metrics. `genres` adds the genre array.",
+export const mangaV2IncludeItemSchema = z.enum(["stats", "genres", "groups"]).describe(
+  "Supported include expansion values. `stats` adds aggregate metrics. `genres` adds the genre array. `groups` adds resolved translation team metadata.",
 );
 
 const parseIncludeValue = (value: string | undefined, ctx: z.RefinementCtx): Array<z.infer<typeof mangaV2IncludeItemSchema>> => {
@@ -91,7 +91,7 @@ export const mangaV2IncludeQuerySchema = z
   .trim()
   .optional()
   .transform((value, ctx) => parseIncludeValue(value, ctx))
-  .describe("Comma-separated expansions. Supported values: `stats`, `genres`. Example: `stats,genres`.");
+  .describe("Comma-separated expansions. Supported values: `stats`, `genres`, `groups`. Example: `stats,genres,groups`.");
 
 export const mangaV2BaseSchema = mangaListItemSchema.pick({
   id: true,
@@ -104,6 +104,7 @@ export const mangaV2BaseSchema = mangaListItemSchema.pick({
   coverUrl: true,
   coverUpdatedAt: true,
   groupName: true,
+  altTitles: true,
   createdAt: true,
   updatedAt: true,
   isOneshot: true,
@@ -121,6 +122,7 @@ export const mangaV2StatsSchema = z.object({
 export const mangaV2ItemSchema = mangaV2BaseSchema.extend({
   stats: mangaV2StatsSchema.optional(),
   genres: z.array(genreSummarySchema).optional(),
+  groups: mangaListItemSchema.shape.groups.optional(),
 });
 
 export const mangaV2RankingSchema = z.object({
