@@ -1,3 +1,4 @@
+import type { GroupSummary } from "../contracts/manga.js";
 import type { TeamListQuery, TeamMangaListQuery, TeamMember, TeamSummary, TeamUpdateItem, TeamUpdatesQuery } from "../contracts/team.js";
 import { mangaRepository } from "./manga.repository.js";
 import { pool } from "../db/client.js";
@@ -58,7 +59,53 @@ interface TeamUpdateRow {
   chapter_password_hash: string | null;
 }
 
+interface ApprovedTeamLookupRow {
+  team_id: number;
+  team_name: string;
+}
+
 const buildRoleLabel = (role: string): string => (role.trim().toLowerCase() === "leader" ? "Leader" : "Member");
+
+const normalizeGroupLookupValue = (value: string | null | undefined): string =>
+  (value ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+const buildNormalizedGroupTokenList = (value: string | null | undefined): string[] =>
+  normalizeGroupLookupValue(value)
+    .replace(/ \/ /g, ",")
+    .replace(/\//g, ",")
+    .replace(/ & /g, ",")
+    .replace(/&/g, ",")
+    .replace(/ \+ /g, ",")
+    .replace(/\+/g, ",")
+    .replace(/;/g, ",")
+    .replace(/\|/g, ",")
+    .replace(/, /g, ",")
+    .replace(/ ,/g, ",")
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+const matchesGroupLookupName = (groupName: string | null | undefined, teamName: string | null | undefined): boolean => {
+  const normalizedGroupName = normalizeGroupLookupValue(groupName);
+  const normalizedTeamName = normalizeGroupLookupValue(teamName);
+
+  if (!normalizedGroupName || !normalizedTeamName) {
+    return false;
+  }
+
+  if (normalizedGroupName === normalizedTeamName) {
+    return true;
+  }
+
+  if (buildNormalizedGroupTokenList(groupName).includes(normalizedTeamName)) {
+    return true;
+  }
+
+  return normalizedGroupName.includes(normalizedTeamName);
+};
 
 const normalizeOptionalText = (value: string | null | undefined): string | null => {
   const text = (value ?? "").trim();
@@ -180,6 +227,44 @@ const buildTeamListOrderClause = (sort: TeamListQuery["sort"]): string => {
 };
 
 export class TeamRepository {
+  async resolvePublicGroupsByNames(groupNames: Array<string | null | undefined>): Promise<Map<string, GroupSummary[]>> {
+    const normalizedInputs = Array.from(
+      new Set(
+        groupNames
+          .map((name) => (name ?? "").trim())
+          .filter((name) => name.length > 0),
+      ),
+    );
+
+    if (normalizedInputs.length === 0) {
+      return new Map();
+    }
+
+    const { rows } = await pool.query<ApprovedTeamLookupRow>(`
+      SELECT
+        t.id AS team_id,
+        t.name AS team_name
+      FROM translation_teams t
+      WHERE t.status = 'approved'
+      ORDER BY lower(t.name) ASC, t.id ASC
+    `);
+
+    return new Map(
+      normalizedInputs.map((groupName) => {
+        const matches = rows
+          .filter((row) => matchesGroupLookupName(groupName, row.team_name))
+          .map((row) => ({
+            id: row.team_id,
+            name: row.team_name,
+          } satisfies GroupSummary));
+
+        const uniqueMatches = Array.from(new Map(matches.map((item) => [item.id, item])).values());
+
+        return [groupName, uniqueMatches] as const;
+      }),
+    );
+  }
+
   private async findApprovedTeamRowById(id: number): Promise<TeamRow | null> {
     const { rows: teamRows } = await pool.query<TeamRow>(
       `

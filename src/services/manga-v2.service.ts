@@ -1,12 +1,13 @@
 import { resolveMangaTopTime, type GenreSummary, type MangaListItem } from "../contracts/manga.js";
 import type { MangaV2Base, MangaV2Include, MangaV2Item, MangaV2RandomQuery, MangaV2SearchQuery, MangaV2Stats, MangaV2TeamMangaQuery, MangaV2TopItem, MangaV2TopQuery } from "../contracts/manga-v2.js";
 import { mangaRepository } from "../repositories/manga.repository.js";
+import { teamRepository } from "../repositories/team.repository.js";
 import { mangaService } from "./manga.service.js";
 import { teamService } from "./team.service.js";
 
 const hasInclude = (includes: MangaV2Include[], include: MangaV2Include) => includes.includes(include);
 
-const mapMangaBase = (item: Pick<MangaListItem, "id" | "slug" | "title" | "description" | "author" | "status" | "cover" | "coverUrl" | "coverUpdatedAt" | "groupName" | "createdAt" | "updatedAt" | "isOneshot" | "chapterCount" | "latestChapterNumber" | "latestChapterNumberText">): MangaV2Base => ({
+const mapMangaBase = (item: Pick<MangaListItem, "id" | "slug" | "title" | "description" | "author" | "status" | "cover" | "coverUrl" | "coverUpdatedAt" | "groupName" | "altTitles" | "createdAt" | "updatedAt" | "isOneshot" | "chapterCount" | "latestChapterNumber" | "latestChapterNumberText">): MangaV2Base => ({
   id: item.id,
   slug: item.slug,
   title: item.title,
@@ -17,6 +18,7 @@ const mapMangaBase = (item: Pick<MangaListItem, "id" | "slug" | "title" | "descr
   coverUrl: item.coverUrl,
   coverUpdatedAt: item.coverUpdatedAt,
   groupName: item.groupName,
+  altTitles: item.altTitles,
   createdAt: item.createdAt,
   updatedAt: item.updatedAt,
   isOneshot: item.isOneshot,
@@ -27,6 +29,9 @@ const mapMangaBase = (item: Pick<MangaListItem, "id" | "slug" | "title" | "descr
 
 const getOptionalGenres = (item: Pick<MangaListItem, "genres">, includes: MangaV2Include[]): GenreSummary[] | undefined =>
   hasInclude(includes, "genres") ? item.genres : undefined;
+
+const getOptionalGroups = (item: Pick<MangaListItem, "groups">, includes: MangaV2Include[]) =>
+  hasInclude(includes, "groups") ? item.groups : undefined;
 
 const buildStatsById = async (items: Array<{ id: number }>, includes: MangaV2Include[]) => {
   if (!hasInclude(includes, "stats")) {
@@ -50,28 +55,40 @@ const buildStatsById = async (items: Array<{ id: number }>, includes: MangaV2Inc
   );
 };
 
+const attachGroupsToMangaItems = async <T extends Pick<MangaListItem, "groupName" | "groups">>(items: T[]): Promise<T[]> => {
+  const groupsByName = await teamRepository.resolvePublicGroupsByNames(items.map((item) => item.groupName));
+
+  return items.map((item) => ({
+    ...item,
+    groups: groupsByName.get((item.groupName ?? "").trim()) ?? [],
+  }));
+};
+
 const buildMangaV2Item = (
-  item: Pick<MangaListItem, "id" | "slug" | "title" | "description" | "author" | "status" | "cover" | "coverUrl" | "coverUpdatedAt" | "groupName" | "createdAt" | "updatedAt" | "isOneshot" | "chapterCount" | "latestChapterNumber" | "latestChapterNumberText" | "genres">,
+  item: Pick<MangaListItem, "id" | "slug" | "title" | "description" | "author" | "status" | "cover" | "coverUrl" | "coverUpdatedAt" | "groupName" | "groups" | "altTitles" | "createdAt" | "updatedAt" | "isOneshot" | "chapterCount" | "latestChapterNumber" | "latestChapterNumberText" | "genres">,
   includes: MangaV2Include[],
   stats: MangaV2Stats | undefined,
 ): MangaV2Item => {
   const base = mapMangaBase(item);
   const genres = getOptionalGenres(item, includes);
+  const groups = getOptionalGroups(item, includes);
 
   return {
     ...base,
     ...(stats ? { stats } : {}),
     ...(genres ? { genres } : {}),
+    ...(groups ? { groups } : {}),
   };
 };
 
 export const mangaV2Service = {
   async listPublicManga(query: import("../contracts/manga-v2.js").MangaV2ListQuery): Promise<{ items: MangaV2Item[]; total: number }> {
     const result = await mangaRepository.listPublicMangaV2(query);
-    const statsById = await buildStatsById(result.items, query.include);
+    const itemsWithGroups = await attachGroupsToMangaItems(result.items);
+    const statsById = await buildStatsById(itemsWithGroups, query.include);
 
     return {
-      items: result.items.map((item) => buildMangaV2Item(item, query.include, statsById?.get(item.id))),
+      items: itemsWithGroups.map((item) => buildMangaV2Item(item, query.include, statsById?.get(item.id))),
       total: result.total,
     };
   },
@@ -83,9 +100,15 @@ export const mangaV2Service = {
       return null;
     }
 
-    const statsById = await buildStatsById([item], includes);
+    const [itemWithGroups] = await attachGroupsToMangaItems([item]);
 
-    return buildMangaV2Item(item, includes, statsById?.get(item.id));
+    if (!itemWithGroups) {
+      return null;
+    }
+
+    const statsById = await buildStatsById([itemWithGroups], includes);
+
+    return buildMangaV2Item(itemWithGroups, includes, statsById?.get(itemWithGroups.id));
   },
 
   async listTopPublicManga(query: MangaV2TopQuery): Promise<{ items: MangaV2TopItem[]; total: number }> {
@@ -96,10 +119,11 @@ export const mangaV2Service = {
     };
 
     const result = await mangaService.listTopPublicManga(normalizedQuery);
-    const statsById = await buildStatsById(result.items, query.include);
+    const itemsWithGroups = await attachGroupsToMangaItems(result.items);
+    const statsById = await buildStatsById(itemsWithGroups, query.include);
 
     return {
-      items: result.items.map((item) => ({
+      items: itemsWithGroups.map((item) => ({
         ...buildMangaV2Item(item, query.include, statsById?.get(item.id)),
         ranking: {
           rank: item.rank,
@@ -114,9 +138,10 @@ export const mangaV2Service = {
 
   async listRandomPublicManga(query: MangaV2RandomQuery): Promise<MangaV2Item[]> {
     const items = await mangaService.listRandomPublicManga(query);
-    const statsById = await buildStatsById(items, query.include);
+    const itemsWithGroups = await attachGroupsToMangaItems(items);
+    const statsById = await buildStatsById(itemsWithGroups, query.include);
 
-    return items.map((item) => buildMangaV2Item(item, query.include, statsById?.get(item.id)));
+    return itemsWithGroups.map((item) => buildMangaV2Item(item, query.include, statsById?.get(item.id)));
   },
 
   async searchPublicManga(query: MangaV2SearchQuery): Promise<MangaV2Item[]> {
@@ -131,9 +156,10 @@ export const mangaV2Service = {
       status: undefined,
       include: [],
     });
-    const statsById = await buildStatsById(result.items, query.include);
+    const itemsWithGroups = await attachGroupsToMangaItems(result.items);
+    const statsById = await buildStatsById(itemsWithGroups, query.include);
 
-    return result.items.map((item) => buildMangaV2Item(item, query.include, statsById?.get(item.id)));
+    return itemsWithGroups.map((item) => buildMangaV2Item(item, query.include, statsById?.get(item.id)));
   },
 
   async listPublicTeamMangaByTeamId(id: number, query: MangaV2TeamMangaQuery): Promise<{ items: MangaV2Item[]; total: number } | null> {
@@ -144,11 +170,11 @@ export const mangaV2Service = {
     }
 
     const result = await mangaRepository.listPublicMangaByGroupNameV2(team.name, query);
-
-    const statsById = await buildStatsById(result.items, query.include);
+    const itemsWithGroups = await attachGroupsToMangaItems(result.items);
+    const statsById = await buildStatsById(itemsWithGroups, query.include);
 
     return {
-      items: result.items.map((item) => buildMangaV2Item(item, query.include, statsById?.get(item.id))),
+      items: itemsWithGroups.map((item) => buildMangaV2Item(item, query.include, statsById?.get(item.id))),
       total: result.total,
     };
   },

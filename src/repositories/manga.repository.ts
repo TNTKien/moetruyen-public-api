@@ -304,6 +304,12 @@ const mapMangaGenres = async (mangaIds: number[]) => {
   return byMangaId;
 };
 
+const parseAltTitles = (value: string | null | undefined): string[] =>
+  (value ?? "")
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+
 const mapBaseMangaFields = (row: {
   id: number;
   slug: string;
@@ -314,6 +320,7 @@ const mapBaseMangaFields = (row: {
   cover: string | null;
   coverUpdatedAt: number | null;
   groupName: string | null;
+  otherNames: string | null;
   updatedAt: string | null;
   createdAt: string | null;
   commentCount: number;
@@ -331,6 +338,8 @@ const mapBaseMangaFields = (row: {
   coverUrl: buildCoverUrl(row.cover, row.coverUpdatedAt),
   coverUpdatedAt: toIsoDateString(row.coverUpdatedAt),
   groupName: row.groupName,
+  groups: [],
+  altTitles: parseAltTitles(row.otherNames),
   updatedAt: toIsoDateString(row.updatedAt),
   createdAt: toIsoDateString(row.createdAt),
   commentCount: row.commentCount,
@@ -365,6 +374,7 @@ const mapPublicMangaItems = async (
     coverUpdatedAt: number | null;
     updatedAt: string | null;
     createdAt: string | null;
+    otherNames: string | null;
     commentCount: number;
     latestChapterNumber: string | null;
     chapterCount: number;
@@ -520,6 +530,7 @@ export class MangaRepository {
         cover: manga.cover,
         coverUpdatedAt: manga.coverUpdatedAt,
         groupName: manga.groupName,
+        otherNames: manga.otherNames,
         updatedAt: manga.updatedAt,
         createdAt: manga.createdAt,
         commentCount: visibleCommentCountExpr,
@@ -561,6 +572,7 @@ export class MangaRepository {
         cover: manga.cover,
         coverUpdatedAt: manga.coverUpdatedAt,
         groupName: manga.groupName,
+        otherNames: manga.otherNames,
         updatedAt: manga.updatedAt,
         createdAt: manga.createdAt,
         commentCount: visibleCommentCountExpr,
@@ -1095,6 +1107,7 @@ export class MangaRepository {
         coverUpdatedAt: manga.coverUpdatedAt,
         updatedAt: manga.updatedAt,
         createdAt: manga.createdAt,
+        otherNames: manga.otherNames,
         commentCount: visibleCommentCountExpr,
         totalViews: totalMangaViewsExpr,
         bookmarkCount: mangaBookmarkCountExpr,
@@ -1120,6 +1133,8 @@ export class MangaRepository {
       totalViews: item.totalViews,
       bookmarkCount: item.bookmarkCount,
       groupName: item.groupName,
+      groups: [],
+      altTitles: parseAltTitles(item.otherNames),
       genres: genresByMangaId.get(item.id) ?? [],
     };
   }
