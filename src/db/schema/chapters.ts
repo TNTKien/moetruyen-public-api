@@ -32,6 +32,7 @@ export const chapters = pgTable(
     passwordSalt: text("password_salt"),
     passwordUpdatedAt: bigint("password_updated_at", { mode: "number" }),
     pagesFilePrefix: text("pages_file_prefix"),
+    pageDeliveryMode: text("page_delivery_mode"),
   },
   (table) => [
     uniqueIndex("idx_chapters_manga_number").using(

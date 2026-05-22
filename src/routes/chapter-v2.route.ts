@@ -1,7 +1,7 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { describeRoute, resolver, validator } from "hono-openapi";
 
-import { chapterListQuerySchema, chapterReaderParamsSchema, chapterReaderSchema, mangaChapterAggregateListSchema, mangaChapterListSchema } from "../contracts/chapter.js";
+import { chapterListQuerySchema, chapterPageAccessBodySchema, chapterPageAccessSchema, chapterReaderParamsSchema, chapterReaderSchema, mangaChapterAggregateListSchema, mangaChapterListSchema } from "../contracts/chapter.js";
 import { errorEnvelopeSchema, successEnvelopeSchema } from "../contracts/common.js";
 import { mangaIdParamsSchema } from "../contracts/manga.js";
 import { CACHE_CONTROL } from "../lib/cache.js";
@@ -176,6 +176,113 @@ chapterRouteV2.get(
     }
 
     c.header("Cache-Control", CACHE_CONTROL.mangaChapters);
+
+    return jsonSuccess(c, result.data);
+  },
+);
+
+const getPageAccessSessionId = (c: Context<AppBindings>): string =>
+  [
+    c.req.header("Authorization"),
+    c.req.header("CF-Connecting-IP"),
+    c.req.header("X-Forwarded-For"),
+    c.req.header("X-Real-IP"),
+    c.req.header("User-Agent"),
+    c.get("requestId"),
+  ]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .join("|");
+
+chapterRouteV2.post(
+  "/chapters/:id/page-access",
+  describeRoute({
+    tags: ["Chapters"],
+    summary: "Create IMGX page access grants (v2)",
+    description: "Returns short-lived IMGX page download URLs and wrapped decode-key grants for selected chapter pages.",
+    responses: {
+      200: {
+        description: "IMGX page grants",
+        content: {
+          "application/json": {
+            schema: resolver(successEnvelopeSchema(chapterPageAccessSchema)),
+          },
+        },
+      },
+      400: {
+        description: "Invalid page access request",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
+      403: {
+        description: "Chapter requires password or is locked",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
+      404: {
+        description: "IMGX chapter not found",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
+      503: {
+        description: "IMGX is not configured",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
+    },
+  }),
+  validator("param", chapterReaderParamsSchema, validationHook),
+  validator("json", chapterPageAccessBodySchema, validationHook),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const { pageIndexes } = c.req.valid("json");
+    const result = await chapterService.getPublicChapterPageAccessById(id, pageIndexes, getPageAccessSessionId(c));
+
+    if (result.kind === "not_found" || result.kind === "not_imgx") {
+      throw new AppError({
+        code: "IMGX_CHAPTER_NOT_FOUND",
+        message: "Protected chapter not found",
+        status: 404,
+      });
+    }
+
+    if (result.kind === "forbidden") {
+      throw new AppError({
+        code: result.reason === "password_required" ? "PASSWORD_REQUIRED" : "CHAPTER_LOCKED",
+        message: result.reason === "password_required" ? "Password required to access this chapter" : "Chapter is locked",
+        status: 403,
+      });
+    }
+
+    if (result.kind === "not_configured") {
+      throw new AppError({
+        code: "IMGX_NOT_CONFIGURED",
+        message: "Protected reader is not configured",
+        status: 503,
+      });
+    }
+
+    if (result.kind === "invalid_request") {
+      throw new AppError({
+        code: result.reason === "too_many_pages_requested" ? "TOO_MANY_PAGES_REQUESTED" : "NO_PAGES_REQUESTED",
+        message: result.reason === "too_many_pages_requested" ? "Too many pages requested" : "No pages requested",
+        status: 400,
+        ...(result.maxWindow ? { details: { maxWindow: result.maxWindow } } : {}),
+      });
+    }
+
+    c.header("Cache-Control", "no-store");
 
     return jsonSuccess(c, result.data);
   },

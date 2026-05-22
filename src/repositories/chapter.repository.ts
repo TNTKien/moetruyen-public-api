@@ -1,16 +1,37 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 
-import type { ChapterAggregateItem, ChapterItem, ChapterListQuery, ChapterReader, MangaChapterAggregateList, PaginatedMangaChapterListResult } from "../contracts/chapter.js";
+import { env } from "../config/env.js";
+import type { ChapterAggregateItem, ChapterItem, ChapterListQuery, ChapterPageAccess, ChapterReader, MangaChapterAggregateList, PaginatedMangaChapterListResult } from "../contracts/chapter.js";
 import { db } from "../db/client.js";
 import { chapters } from "../db/schema/chapters.js";
 import { manga } from "../db/schema/manga.js";
 import { getPublicChapterAccess, type PublicChapterAccess } from "../lib/chapter-access.js";
-import { buildChapterPageUrls, formatNumericText, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
+import { createImgxPageGrant } from "../lib/imgx.js";
+import { buildChapterAssetUrl, buildChapterPageStorageKey, buildChapterPageUrls, formatNumericText, normalizeImgxPageExtension, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
 
 export type ChapterReaderLookupResult =
   | { kind: "ok"; data: ChapterReader }
   | { kind: "not_found" }
   | { kind: "forbidden"; reason: Exclude<PublicChapterAccess, "public"> };
+
+export type ChapterPageAccessLookupResult =
+  | { kind: "ok"; data: ChapterPageAccess }
+  | { kind: "not_found" }
+  | { kind: "forbidden"; reason: Exclude<PublicChapterAccess, "public"> }
+  | { kind: "not_imgx" }
+  | { kind: "not_configured" }
+  | { kind: "invalid_request"; reason: "no_pages_requested" | "too_many_pages_requested"; maxWindow?: number };
+
+const normalizeChapterDeliveryMode = (chapter: { pageDeliveryMode: string | null; pagesExt: string | null }): "imgx" | "legacy" => {
+  const mode = (chapter.pageDeliveryMode ?? "").trim().toLowerCase();
+  const extension = (chapter.pagesExt ?? "").trim().toLowerCase().replace(/^\./, "");
+
+  return mode === "imgx" || extension === "bin" || extension === "js" ? "imgx" : "legacy";
+};
+
+const getImgxPageAccessMaxWindow = (): number => Math.max(1, Math.min(20, Math.floor(Number(env.IMGX_PAGE_ACCESS_WINDOW_MAX) || 5)));
+
+const imgxIsConfigured = (): boolean => env.IMGX_ENABLED && env.IMGX_SECRET.trim().length > 0 && env.IMGX_SESSION_HMAC_SECRET.trim().length > 0;
 
 const mapChapterNavigation = (chapter: { id: number; number: string; title: string; access: PublicChapterAccess }) => ({
   id: chapter.id,
@@ -285,6 +306,128 @@ export class ChapterRepository {
         }),
         prevChapter: prevChapter ? mapChapterNavigation(prevChapter) : null,
         nextChapter: nextChapter ? mapChapterNavigation(nextChapter) : null,
+      },
+    };
+  }
+
+  async getPublicChapterPageAccessById(chapterId: number, rawPageIndexes: number[], sessionId: string): Promise<ChapterPageAccessLookupResult> {
+    const chapterRow = await db
+      .select({
+        mangaIsHidden: manga.isHidden,
+        oneshotLocked: manga.oneshotLocked,
+        chapterId: chapters.id,
+        chapterPages: chapters.pages,
+        chapterPagesPrefix: chapters.pagesPrefix,
+        chapterPagesExt: chapters.pagesExt,
+        chapterPagesFilePrefix: chapters.pagesFilePrefix,
+        chapterPagesUpdatedAt: chapters.pagesUpdatedAt,
+        chapterPageDeliveryMode: chapters.pageDeliveryMode,
+        chapterIsOneshot: chapters.isOneshot,
+        chapterPasswordHash: chapters.passwordHash,
+      })
+      .from(chapters)
+      .innerJoin(manga, eq(manga.id, chapters.mangaId))
+      .where(and(eq(chapters.id, chapterId), eq(manga.isHidden, 0)))
+      .limit(1)
+      .then((rows) => rows[0] ?? null);
+
+    if (!chapterRow) {
+      return { kind: "not_found" };
+    }
+
+    const chapterAccess = getPublicChapterAccess({
+      chapterPasswordHash: chapterRow.chapterPasswordHash,
+      chapterIsOneshot: chapterRow.chapterIsOneshot,
+      mangaOneshotLocked: chapterRow.oneshotLocked,
+    });
+
+    if (chapterAccess !== "public") {
+      return {
+        kind: "forbidden",
+        reason: chapterAccess,
+      };
+    }
+
+    if (
+      normalizeChapterDeliveryMode({
+        pageDeliveryMode: chapterRow.chapterPageDeliveryMode,
+        pagesExt: chapterRow.chapterPagesExt,
+      }) !== "imgx"
+    ) {
+      return { kind: "not_imgx" };
+    }
+
+    if (!imgxIsConfigured()) {
+      return { kind: "not_configured" };
+    }
+
+    const pageCount = Math.max(Number(chapterRow.chapterPages) || 0, 0);
+    const maxWindow = getImgxPageAccessMaxWindow();
+    const pageIndexes = Array.from(
+      new Set(
+        rawPageIndexes
+          .map((value) => Number(value))
+          .filter((value) => Number.isFinite(value))
+          .map((value) => Math.floor(value))
+          .filter((value) => value >= 0 && value < pageCount),
+      ),
+    ).slice(0, maxWindow + 1);
+
+    if (pageIndexes.length === 0) {
+      return { kind: "invalid_request", reason: "no_pages_requested" };
+    }
+
+    if (pageIndexes.length > maxWindow) {
+      return { kind: "invalid_request", reason: "too_many_pages_requested", maxWindow };
+    }
+
+    const pages = pageIndexes
+      .map((pageIndex) => {
+        const storageKey = buildChapterPageStorageKey({
+          pageIndex,
+          pages: pageCount,
+          pagesPrefix: chapterRow.chapterPagesPrefix,
+          pagesExt: normalizeImgxPageExtension(chapterRow.chapterPagesExt),
+          pagesFilePrefix: chapterRow.chapterPagesFilePrefix,
+        });
+
+        if (!storageKey) {
+          return null;
+        }
+
+        const downloadUrl = buildChapterAssetUrl(storageKey, chapterRow.chapterPagesUpdatedAt);
+
+        if (!downloadUrl) {
+          return null;
+        }
+
+        return {
+          pageIndex,
+          pageNumber: pageIndex + 1,
+          storageKey,
+          downloadUrl,
+          grant: createImgxPageGrant({
+            storageKey,
+            sessionId,
+            imgxSecret: env.IMGX_SECRET,
+            hmacSecret: env.IMGX_SESSION_HMAC_SECRET,
+            ttlMs: env.IMGX_PAGE_ACCESS_TTL_MS,
+          }),
+        };
+      })
+      .filter((page): page is ChapterPageAccess["pages"][number] => page !== null);
+
+    if (pages.length === 0) {
+      return { kind: "invalid_request", reason: "no_pages_requested" };
+    }
+
+    return {
+      kind: "ok",
+      data: {
+        chapterId: chapterRow.chapterId,
+        ttlMs: env.IMGX_PAGE_ACCESS_TTL_MS,
+        maxWindow,
+        pages,
       },
     };
   }

@@ -13,8 +13,10 @@ process.env.LOG_LEVEL = "info";
 const {
   buildChapterAssetUrl,
   buildChapterPageFileName,
+  buildChapterPageStorageKey,
   buildChapterPageUrls,
   buildCoverUrl,
+  normalizeImgxPageExtension,
   normalizeSearchTerm,
 } = await import("../src/lib/public-content.js");
 
@@ -46,6 +48,33 @@ describe("public content helpers", () => {
     expect(buildChapterPageFileName({ pageNumber: 12, padLength: 3, extension: ".jpg", pageFilePrefix: "bad" })).toBe(
       "012.jpg",
     );
+  });
+
+  it("builds chapter page storage keys from chapter asset fields", () => {
+    expect(
+      buildChapterPageStorageKey({
+        pageIndex: 0,
+        pages: 30,
+        pagesPrefix: "chapters/manga-873/ch-52/",
+        pagesExt: "js",
+        pagesFilePrefix: "ysXot",
+      }),
+    ).toBe("chapters/manga-873/ch-52/001_ysXot.js");
+    expect(
+      buildChapterPageStorageKey({
+        pageIndex: 30,
+        pages: 30,
+        pagesPrefix: "chapters/manga-873/ch-52",
+        pagesExt: "js",
+        pagesFilePrefix: "ysXot",
+      }),
+    ).toBeNull();
+  });
+
+  it("normalizes IMGX storage extensions to MoeTruyen-compatible values", () => {
+    expect(normalizeImgxPageExtension("js")).toBe("js");
+    expect(normalizeImgxPageExtension(".bin")).toBe("bin");
+    expect(normalizeImgxPageExtension("webp")).toBe("bin");
   });
 
   it("builds chapter page urls from chapter asset fields", () => {

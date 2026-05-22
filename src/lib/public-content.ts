@@ -147,6 +147,12 @@ export const normalizeChapterPageFilePrefix = (value: string | null | undefined)
   return PAGE_FILE_PREFIX_PATTERN.test(value) ? value : "";
 };
 
+export const normalizeImgxPageExtension = (value: string | null | undefined): "bin" | "js" => {
+  const extension = (value ?? "").trim().toLowerCase().replace(/^\./, "");
+
+  return extension === "js" || extension === "bin" ? extension : "bin";
+};
+
 export const buildChapterPageFileName = (options: {
   pageNumber: number;
   padLength: number;
@@ -167,6 +173,34 @@ export const buildChapterPageFileName = (options: {
   return suffix ? `${baseName}_${suffix}.${safeExtension}` : `${baseName}.${safeExtension}`;
 };
 
+export const buildChapterPageStorageKey = (options: BuildChapterPageUrlsOptions & { pageIndex: number }): string | null => {
+  if (!options.pagesPrefix || !options.pagesExt) {
+    return null;
+  }
+
+  const totalPages = options.pages ?? 0;
+  const pageIndex = Math.trunc(options.pageIndex);
+
+  if (!Number.isInteger(totalPages) || totalPages <= 0 || pageIndex < 0 || pageIndex >= totalPages) {
+    return null;
+  }
+
+  const normalizedPrefix = options.pagesPrefix.trim().replace(/^\/+/, "").replace(/\/+$/, "");
+
+  if (!normalizedPrefix) {
+    return null;
+  }
+
+  const fileName = buildChapterPageFileName({
+    pageNumber: pageIndex + 1,
+    padLength: Math.max(3, String(totalPages).length),
+    extension: options.pagesExt,
+    pageFilePrefix: options.pagesFilePrefix,
+  });
+
+  return `${normalizedPrefix}/${fileName}`;
+};
+
 export const buildChapterPageUrls = (options: BuildChapterPageUrlsOptions): string[] => {
   if (!options.pagesPrefix || !options.pagesExt) {
     return [];
@@ -178,17 +212,12 @@ export const buildChapterPageUrls = (options: BuildChapterPageUrlsOptions): stri
     return [];
   }
 
-  const padLength = Math.max(3, Math.min(6, String(totalPages).length));
-  const normalizedPrefix = options.pagesPrefix.replace(/\/+$/, "");
-
   return Array.from({ length: totalPages }, (_, index) => {
-    const fileName = buildChapterPageFileName({
-      pageNumber: index + 1,
-      padLength,
-      extension: options.pagesExt ?? "",
-      pageFilePrefix: options.pagesFilePrefix,
+    const storageKey = buildChapterPageStorageKey({
+      ...options,
+      pageIndex: index,
     });
 
-    return buildChapterAssetUrl(`${normalizedPrefix}/${fileName}`, options.pagesUpdatedAt) ?? "";
+    return buildChapterAssetUrl(storageKey, options.pagesUpdatedAt) ?? "";
   }).filter((item) => item.length > 0);
 };

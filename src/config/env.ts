@@ -23,6 +23,14 @@ const envSchema = z.object({
     .transform((value) => value === "true"),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(1000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(7),
+  IMGX_ENABLED: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  IMGX_SECRET: z.string().default(""),
+  IMGX_SESSION_HMAC_SECRET: z.string().default(""),
+  IMGX_PAGE_ACCESS_TTL_MS: z.coerce.number().int().positive().default(60_000),
+  IMGX_PAGE_ACCESS_WINDOW_MAX: z.coerce.number().int().positive().default(5),
   APITALLY_CLIENT_ID: z.string().trim().min(1).optional(),
   APITALLY_ENV: z.string().trim().min(1).default("dev"),
   APITALLY_REQUEST_LOGGING_ENABLED: z

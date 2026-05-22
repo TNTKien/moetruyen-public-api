@@ -50,4 +50,8 @@ export const chapterService = {
       },
     };
   },
+
+  getPublicChapterPageAccessById(chapterId: number, pageIndexes: number[], sessionId: string) {
+    return chapterRepository.getPublicChapterPageAccessById(chapterId, pageIndexes, sessionId);
+  },
 };
