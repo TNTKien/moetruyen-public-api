@@ -75,6 +75,38 @@ export const chapterReaderSchema = z.object({
   nextChapter: chapterReaderNavSchema.nullable(),
 });
 
+export const chapterPageAccessBodySchema = z.object({
+  pageIndexes: z.array(z.coerce.number().int().nonnegative()).min(1),
+});
+
+export const imgxPageGrantSchema = z.object({
+  version: z.literal(2),
+  algorithm: z.literal("IMGX-HMAC-SHA256-v2"),
+  imageId: z.string().min(1),
+  issuedAt: z.number().int().nonnegative(),
+  expiresAt: z.number().int().positive(),
+  nonce: z.string().min(1),
+  keyNonce: z.string().min(1),
+  keyHash: z.string().min(1),
+  signature: z.string().min(1),
+  wrappedDecodeKey: z.string().min(1),
+});
+
+export const chapterPageAccessPageSchema = z.object({
+  pageIndex: z.number().int().nonnegative(),
+  pageNumber: z.number().int().positive(),
+  storageKey: z.string().min(1),
+  downloadUrl: z.string().url(),
+  grant: imgxPageGrantSchema,
+});
+
+export const chapterPageAccessSchema = z.object({
+  chapterId: z.number().int().positive(),
+  ttlMs: z.number().int().positive(),
+  maxWindow: z.number().int().positive(),
+  pages: z.array(chapterPageAccessPageSchema),
+});
+
 export const chapterListParamsSchema = mangaIdParamsSchema;
 
 export type ChapterItem = z.infer<typeof chapterItemSchema>;
@@ -86,5 +118,7 @@ export interface PaginatedMangaChapterListResult extends MangaChapterList {
 export type MangaChapterAggregateList = z.infer<typeof mangaChapterAggregateListSchema>;
 export type ChapterReaderParams = z.infer<typeof chapterReaderParamsSchema>;
 export type ChapterReader = z.infer<typeof chapterReaderSchema>;
+export type ChapterPageAccessBody = z.infer<typeof chapterPageAccessBodySchema>;
+export type ChapterPageAccess = z.infer<typeof chapterPageAccessSchema>;
 export type ChapterListParams = z.infer<typeof chapterListParamsSchema>;
 export type ChapterListQuery = z.infer<typeof chapterListQuerySchema>;

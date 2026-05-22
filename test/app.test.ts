@@ -54,6 +54,19 @@ describe("public api app surface", () => {
     expect(response.headers.get("access-control-expose-headers")).toContain("X-Request-Id");
   });
 
+  it("allows CORS preflight for IMGX page-access POST requests", async () => {
+    const response = await app.request("http://local/v2/chapters/99/page-access", {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://example.com",
+        "Access-Control-Request-Method": "POST",
+      },
+    });
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-methods")).toContain("POST");
+  });
+
   it("returns the OpenAPI document with v2 routes only", async () => {
     const response = await app.request("http://local/openapi.json");
     const body = (await response.json()) as { info?: { title?: string }; paths?: Record<string, unknown> };

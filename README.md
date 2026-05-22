@@ -23,6 +23,7 @@ Server starts at `http://localhost:8787`.
 
 - Stable public endpoints are served under `/v2`.
 - Legacy `/v1` endpoints have been removed.
+- IMGX chapters expose short-lived page grants at `POST /v2/chapters/:id/page-access`.
 
 ### Verify
 ```bash
@@ -42,6 +43,11 @@ bun run build
 
 ### Optional
 - `RATE_LIMIT_ENABLED`
+- `IMGX_ENABLED`
+- `IMGX_SECRET`
+- `IMGX_SESSION_HMAC_SECRET`
+- `IMGX_PAGE_ACCESS_TTL_MS`
+- `IMGX_PAGE_ACCESS_WINDOW_MAX`
 - `APITALLY_CLIENT_ID`
 - `LOG_LEVEL`
 - `DATABASE_POOL_MAX`
@@ -50,5 +56,6 @@ bun run build
 
 - CORS uses exact origins from `ALLOWED_ORIGINS`.
 - Global rate limiting is enabled by configuration.
+- IMGX page access requires `IMGX_ENABLED=true`, `IMGX_SECRET`, and `IMGX_SESSION_HMAC_SECRET`.
 - This repo does not own primary database migrations.
 - Use `bun run db:pull` to refresh Drizzle schema from the database.

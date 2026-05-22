@@ -21,6 +21,7 @@ const originals = {
   listPublicChaptersByMangaId: chapterService.listPublicChaptersByMangaId,
   listAggregatePublicChaptersByMangaId: chapterService.listAggregatePublicChaptersByMangaId,
   getPublicChapterReaderById: chapterService.getPublicChapterReaderById,
+  getPublicChapterPageAccessById: chapterService.getPublicChapterPageAccessById,
   listRecentPublicComments: commentService.listRecentPublicComments,
   listPublicMangaCommentsByMangaId: commentService.listPublicMangaCommentsByMangaId,
   listPublicChapterCommentsByChapterId: commentService.listPublicChapterCommentsByChapterId,
@@ -37,6 +38,7 @@ afterEach(() => {
   chapterService.listPublicChaptersByMangaId = originals.listPublicChaptersByMangaId;
   chapterService.listAggregatePublicChaptersByMangaId = originals.listAggregatePublicChaptersByMangaId;
   chapterService.getPublicChapterReaderById = originals.getPublicChapterReaderById;
+  chapterService.getPublicChapterPageAccessById = originals.getPublicChapterPageAccessById;
   commentService.listRecentPublicComments = originals.listRecentPublicComments;
   commentService.listPublicMangaCommentsByMangaId = originals.listPublicMangaCommentsByMangaId;
   commentService.listPublicChapterCommentsByChapterId = originals.listPublicChapterCommentsByChapterId;
@@ -149,6 +151,67 @@ describe("public api v2 mirrored routes", () => {
 
     expect(response.status).toBe(200);
     expect(body.data.chapter.groups).toEqual([{ id: 9, name: "Test Group" }]);
+  });
+
+  it("returns v2 IMGX page-access grants", async () => {
+    let receivedChapterId: number | undefined;
+    let receivedPageIndexes: number[] | undefined;
+
+    chapterService.getPublicChapterPageAccessById = async (chapterId, pageIndexes) => {
+      receivedChapterId = chapterId;
+      receivedPageIndexes = pageIndexes;
+
+      return {
+        kind: "ok",
+        data: {
+          chapterId,
+          ttlMs: 60_000,
+          maxWindow: 5,
+          pages: [
+            {
+              pageIndex: 0,
+              pageNumber: 1,
+              storageKey: "chapters/manga-873/ch-52/001_ysXot.js",
+              downloadUrl: "https://i.moetruyen.net/chapters/manga-873/ch-52/001_ysXot.js?t=1779440034633",
+              grant: {
+                version: 2,
+                algorithm: "IMGX-HMAC-SHA256-v2",
+                imageId: "image-id",
+                issuedAt: 1_779_440_000_000,
+                expiresAt: 1_779_440_060_000,
+                nonce: "nonce",
+                keyNonce: "key-nonce",
+                keyHash: "key-hash",
+                signature: "signature",
+                wrappedDecodeKey: "wrapped-key",
+              },
+            },
+          ],
+        },
+      };
+    };
+
+    const response = await app.request("http://local/v2/chapters/99/page-access", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ pageIndexes: [0, 1] }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(receivedChapterId).toBe(99);
+    expect(receivedPageIndexes).toEqual([0, 1]);
+    expect(body.data.pages[0]).toMatchObject({
+      pageIndex: 0,
+      pageNumber: 1,
+      storageKey: "chapters/manga-873/ch-52/001_ysXot.js",
+      grant: {
+        algorithm: "IMGX-HMAC-SHA256-v2",
+        wrappedDecodeKey: "wrapped-key",
+      },
+    });
   });
 
   it("returns v2 recent comments", async () => {

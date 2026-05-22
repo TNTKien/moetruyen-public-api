@@ -16,7 +16,7 @@ export const genres = pgTable(
     }),
     name: text().notNull(),
   },
-  (table) => [uniqueIndex("idx_genres_name_lower").using("btree", sql`lower(name)`)],
+  () => [uniqueIndex("idx_genres_name_lower").using("btree", sql`lower(name)`)],
 );
 
 export const mangaGenres = pgTable(
