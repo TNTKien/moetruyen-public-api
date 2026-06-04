@@ -80,16 +80,22 @@ export const chapterPageAccessBodySchema = z.object({
 });
 
 export const imgxPageGrantSchema = z.object({
-  version: z.literal(2),
-  algorithm: z.literal("IMGX-HMAC-SHA256-v2"),
+  version: z.literal(1),
+  algorithm: z.literal("IMGX-GRANT-WRAP-v1"),
+  codecVersions: z.tuple([z.literal(2), z.literal(3)]),
+  defaultCodecVersion: z.literal(3),
+  contentAlgorithm: z.literal("IMGX-AES-256-GCM-HKDF-v3"),
+  legacyAlgorithm: z.literal("IMGX-HMAC-SHA256-v2"),
   imageId: z.string().min(1),
   issuedAt: z.number().int().nonnegative(),
   expiresAt: z.number().int().positive(),
   nonce: z.string().min(1),
   keyNonce: z.string().min(1),
   keyHash: z.string().min(1),
+  contentKeyHash: z.string().min(1),
   signature: z.string().min(1),
   wrappedDecodeKey: z.string().min(1),
+  wrappedContentKey: z.string().min(1),
 });
 
 export const chapterPageAccessPageSchema = z.object({

@@ -23,7 +23,7 @@ Server starts at `http://localhost:8787`.
 
 - Stable public endpoints are served under `/v2`.
 - Legacy `/v1` endpoints have been removed.
-- IMGX chapters expose short-lived page grants at `POST /v2/chapters/:id/page-access`.
+- IMGX chapters expose short-lived v2/v3 page grants at `POST /v2/chapters/:id/page-access`.
 
 ### Verify
 ```bash
