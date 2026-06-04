@@ -197,8 +197,8 @@ chapterRouteV2.post(
   "/chapters/:id/page-access",
   describeRoute({
     tags: ["Chapters"],
-    summary: "Create IMGX page access grants (v2)",
-    description: "Returns short-lived IMGX page download URLs and wrapped decode-key grants for selected chapter pages.",
+    summary: "Create IMGX page access grants",
+    description: "Returns short-lived IMGX page download URLs and wrapped v2/v3 key grants for selected chapter pages.",
     responses: {
       200: {
         description: "IMGX page grants",

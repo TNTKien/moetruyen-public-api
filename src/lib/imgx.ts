@@ -1,18 +1,30 @@
-import { createHash, createHmac, randomBytes as cryptoRandomBytes } from "node:crypto";
+import { createHash, createHmac, hkdfSync, randomBytes as cryptoRandomBytes } from "node:crypto";
 
+export const IMGX_LEGACY_VERSION = 2;
+export const IMGX_VERSION = 3;
+export const IMGX_GRANT_VERSION = 1;
 export const IMGX_SESSION_KEY_BYTES = 32;
+export const IMGX_GRANT_ALGORITHM = "IMGX-GRANT-WRAP-v1";
+export const IMGX_V2_ALGORITHM = "IMGX-HMAC-SHA256-v2";
+export const IMGX_V3_ALGORITHM = "IMGX-AES-256-GCM-HKDF-v3";
 
 export interface ImgxGrant {
-  version: 2;
-  algorithm: "IMGX-HMAC-SHA256-v2";
+  version: typeof IMGX_GRANT_VERSION;
+  algorithm: typeof IMGX_GRANT_ALGORITHM;
+  codecVersions: readonly [typeof IMGX_LEGACY_VERSION, typeof IMGX_VERSION];
+  defaultCodecVersion: typeof IMGX_VERSION;
+  contentAlgorithm: typeof IMGX_V3_ALGORITHM;
+  legacyAlgorithm: typeof IMGX_V2_ALGORITHM;
   imageId: string;
   issuedAt: number;
   expiresAt: number;
   nonce: string;
   keyNonce: string;
   keyHash: string;
+  contentKeyHash: string;
   signature: string;
   wrappedDecodeKey: string;
+  wrappedContentKey: string;
 }
 
 interface CreateImgxPageGrantOptions {
@@ -58,22 +70,37 @@ export const deriveImgxKey = (imageId: string, secret: string): Buffer => {
   return createHash("sha256").update(safeImageId).update(safeSecret).digest();
 };
 
-const canonicalGrantPayload = (grant: Omit<ImgxGrant, "signature" | "wrappedDecodeKey">, sessionId: string, storageKey: string): string =>
+export const deriveImgxContentKey = (options: { imageId: string; secret: string; storageKey: string }): Buffer => {
+  const legacyKey = deriveImgxKey(options.imageId, options.secret);
+  const safeStorageKey = normalizeStorageKey(options.storageKey);
+  const salt = createHash("sha256").update(safeStorageKey || options.imageId).digest();
+  const info = Buffer.from(["IMGX-v3", options.imageId].join("."), "utf8");
+
+  return Buffer.from(hkdfSync("sha256", legacyKey, salt, info, IMGX_SESSION_KEY_BYTES));
+};
+
+type ImgxGrantSignaturePayload = Omit<ImgxGrant, "signature" | "wrappedDecodeKey" | "wrappedContentKey">;
+
+const canonicalGrantPayload = (grant: ImgxGrantSignaturePayload, sessionId: string, storageKey: string): string =>
   [
     grant.version,
     grant.algorithm,
+    grant.codecVersions.join(","),
+    grant.contentAlgorithm,
+    grant.legacyAlgorithm,
     grant.imageId,
     grant.issuedAt,
     grant.expiresAt,
     grant.nonce,
     grant.keyNonce,
     grant.keyHash,
+    grant.contentKeyHash,
     sessionId,
     normalizeStorageKey(storageKey),
   ].join(".");
 
 const signGrant = (options: {
-  grant: Omit<ImgxGrant, "signature" | "wrappedDecodeKey">;
+  grant: ImgxGrantSignaturePayload;
   sessionId: string;
   storageKey: string;
   hmacSecret: string;
@@ -131,12 +158,12 @@ const createGrantKeyWrapMaterial = (grant: Pick<ImgxGrant, "version" | "algorith
     .map((part) => String(part))
     .join(".");
 
-const wrapDecodeKeyForGrant = (options: { decodeKey: Uint8Array; grant: ImgxGrant; storageKey: string }): Buffer => {
-  if (options.decodeKey.byteLength !== IMGX_SESSION_KEY_BYTES) {
-    throw new Error("IMGX decode key wrap requires a 32-byte key");
+const wrapKeyForGrant = (options: { key: Uint8Array; grant: ImgxGrant; storageKey: string; label: string }): Buffer => {
+  if (options.key.byteLength !== IMGX_SESSION_KEY_BYTES) {
+    throw new Error(`${options.label} wrap requires a 32-byte key`);
   }
 
-  const wrapped = Buffer.from(options.decodeKey);
+  const wrapped = Buffer.from(options.key);
   const mask = createGrantKeyMask(createGrantKeyWrapMaterial(options.grant, options.storageKey), wrapped.byteLength);
 
   for (let index = 0; index < wrapped.byteLength; index += 1) {
@@ -146,25 +173,67 @@ const wrapDecodeKeyForGrant = (options: { decodeKey: Uint8Array; grant: ImgxGran
   return wrapped;
 };
 
-export const unwrapDecodeKeyFromGrant = (options: { grant: ImgxGrant; storageKey: string }): Buffer => {
-  const wrapped = base64UrlDecode(options.grant.wrappedDecodeKey);
+const wrapDecodeKeyForGrant = (options: { decodeKey: Uint8Array; grant: ImgxGrant; storageKey: string }): Buffer =>
+  wrapKeyForGrant({
+    key: options.decodeKey,
+    grant: options.grant,
+    storageKey: options.storageKey,
+    label: "IMGX decode key",
+  });
+
+const unwrapWrappedKeyFromGrant = (options: {
+  grant: ImgxGrant;
+  storageKey: string;
+  fieldName: "wrappedDecodeKey" | "wrappedContentKey";
+  hashFieldName: "keyHash" | "contentKeyHash";
+  label: string;
+}): Buffer => {
+  const wrapped = base64UrlDecode(options.grant[options.fieldName]);
 
   if (wrapped.byteLength !== IMGX_SESSION_KEY_BYTES) {
-    throw new Error("IMGX wrapped decode key invalid");
+    throw new Error(`${options.label} invalid`);
   }
 
   const mask = createGrantKeyMask(createGrantKeyWrapMaterial(options.grant, options.storageKey), wrapped.byteLength);
-  const decodeKey = Buffer.from(wrapped);
+  const key = Buffer.from(wrapped);
 
-  for (let index = 0; index < decodeKey.byteLength; index += 1) {
-    decodeKey[index] = (decodeKey[index] ?? 0) ^ (mask[index] ?? 0);
+  for (let index = 0; index < key.byteLength; index += 1) {
+    key[index] = (key[index] ?? 0) ^ (mask[index] ?? 0);
   }
 
-  if (sha256Base64Url(decodeKey) !== options.grant.keyHash) {
-    throw new Error("IMGX wrapped decode key hash mismatch");
+  if (sha256Base64Url(key) !== options.grant[options.hashFieldName]) {
+    throw new Error(`${options.label} hash mismatch`);
   }
 
-  return decodeKey;
+  return key;
+};
+
+export const unwrapDecodeKeyFromGrant = (options: { grant: ImgxGrant; storageKey: string }): Buffer => {
+  if (options.grant.wrappedDecodeKey) {
+    return unwrapWrappedKeyFromGrant({
+      grant: options.grant,
+      storageKey: options.storageKey,
+      fieldName: "wrappedDecodeKey",
+      hashFieldName: "keyHash",
+      label: "IMGX wrapped decode key",
+    });
+  }
+
+  throw new Error("IMGX grant does not include a decode key");
+};
+
+export const unwrapContentKeyFromGrant = (options: { grant: ImgxGrant; storageKey: string }): Buffer => {
+  if (options.grant.wrappedContentKey) {
+    return unwrapWrappedKeyFromGrant({
+      grant: options.grant,
+      storageKey: options.storageKey,
+      fieldName: "wrappedContentKey",
+      hashFieldName: "contentKeyHash",
+      label: "IMGX wrapped content key",
+    });
+  }
+
+  throw new Error("IMGX grant does not include a content key");
 };
 
 export const createImgxPageGrant = (options: CreateImgxPageGrantOptions): ImgxGrant => {
@@ -174,15 +243,25 @@ export const createImgxPageGrant = (options: CreateImgxPageGrantOptions): ImgxGr
   const randomBytes = options.randomBytes ?? cryptoRandomBytes;
   const imageId = imageIdFromStorageKey(storageKey);
   const decodeKey = deriveImgxKey(imageId, options.imgxSecret);
+  const contentKey = deriveImgxContentKey({
+    imageId,
+    secret: options.imgxSecret,
+    storageKey,
+  });
   const unsigned = {
-    version: 2,
-    algorithm: "IMGX-HMAC-SHA256-v2",
+    version: IMGX_GRANT_VERSION,
+    algorithm: IMGX_GRANT_ALGORITHM,
+    codecVersions: [IMGX_LEGACY_VERSION, IMGX_VERSION],
+    defaultCodecVersion: IMGX_VERSION,
+    contentAlgorithm: IMGX_V3_ALGORITHM,
+    legacyAlgorithm: IMGX_V2_ALGORITHM,
     imageId,
     issuedAt,
     expiresAt: issuedAt + ttlMs,
     nonce: base64UrlEncode(randomBytes(16)),
     keyNonce: base64UrlEncode(randomBytes(16)),
     keyHash: sha256Base64Url(decodeKey),
+    contentKeyHash: sha256Base64Url(contentKey),
   } as const;
   const signed = {
     ...unsigned,
@@ -196,9 +275,16 @@ export const createImgxPageGrant = (options: CreateImgxPageGrantOptions): ImgxGr
   const grant: ImgxGrant = {
     ...signed,
     wrappedDecodeKey: "",
+    wrappedContentKey: "",
   };
 
   grant.wrappedDecodeKey = base64UrlEncode(wrapDecodeKeyForGrant({ decodeKey, grant, storageKey }));
+  grant.wrappedContentKey = base64UrlEncode(wrapKeyForGrant({
+    key: contentKey,
+    grant,
+    storageKey,
+    label: "IMGX content key",
+  }));
 
   return grant;
 };
