@@ -5,19 +5,19 @@ import type { ChapterAggregateItem, ChapterItem, ChapterListQuery, ChapterPageAc
 import { db } from "../db/client.js";
 import { chapters } from "../db/schema/chapters.js";
 import { manga } from "../db/schema/manga.js";
-import { getPublicChapterAccess, type PublicChapterAccess } from "../lib/chapter-access.js";
+import { getPublicChapterAccess, isProcessingChapterState, type ChapterForbiddenReason, type PublicChapterAccess } from "../lib/chapter-access.js";
 import { createImgxPageGrant } from "../lib/imgx.js";
 import { buildChapterAssetUrl, buildChapterPageStorageKey, buildChapterPageUrls, formatNumericText, normalizeImgxPageExtension, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
 
 export type ChapterReaderLookupResult =
   | { kind: "ok"; data: ChapterReader }
   | { kind: "not_found" }
-  | { kind: "forbidden"; reason: Exclude<PublicChapterAccess, "public"> };
+  | { kind: "forbidden"; reason: ChapterForbiddenReason };
 
 export type ChapterPageAccessLookupResult =
   | { kind: "ok"; data: ChapterPageAccess }
   | { kind: "not_found" }
-  | { kind: "forbidden"; reason: Exclude<PublicChapterAccess, "public"> }
+  | { kind: "forbidden"; reason: ChapterForbiddenReason }
   | { kind: "not_imgx" }
   | { kind: "not_configured" }
   | { kind: "invalid_request"; reason: "no_pages_requested" | "too_many_pages_requested"; maxWindow?: number };
@@ -54,6 +54,10 @@ const chapterViewCountExpr = sql<number>`
 
 const chapterCountExpr = sql<number>`count(*)`.mapWith(Number);
 
+const chapterIsNotProcessingExpr = () => sql`lower(coalesce(${chapters.processingState}, '')) <> 'processing'`;
+
+const publicMangaChaptersFilter = (mangaId: number) => and(eq(chapters.mangaId, mangaId), chapterIsNotProcessingExpr());
+
 const normalizeChapterDateInput = (value: string | Date | null): string | null => {
   if (value instanceof Date) {
     return value.toISOString();
@@ -72,6 +76,7 @@ const mapChapterListItem = (
     groupName: string | null;
     viewCount: number;
     passwordHash: string | null;
+    interactionBoostEnabled: boolean;
     isOneshot: boolean;
   },
   mangaOneshotLocked: boolean,
@@ -87,6 +92,7 @@ const mapChapterListItem = (
   viewCount: chapter.viewCount,
   access: getPublicChapterAccess({
     chapterPasswordHash: chapter.passwordHash,
+    chapterInteractionBoostEnabled: chapter.interactionBoostEnabled,
     chapterIsOneshot: chapter.isOneshot,
     mangaOneshotLocked,
   }),
@@ -99,6 +105,7 @@ const mapChapterAggregateItem = (
     title: string | null;
     date: string | Date | null;
     passwordHash: string | null;
+    interactionBoostEnabled: boolean;
     isOneshot: boolean;
   },
   mangaOneshotLocked: boolean,
@@ -110,6 +117,7 @@ const mapChapterAggregateItem = (
   date: toIsoDateString(normalizeChapterDateInput(chapter.date)),
   access: getPublicChapterAccess({
     chapterPasswordHash: chapter.passwordHash,
+    chapterInteractionBoostEnabled: chapter.interactionBoostEnabled,
     chapterIsOneshot: chapter.isOneshot,
     mangaOneshotLocked,
   }),
@@ -143,7 +151,7 @@ export class ChapterRepository {
       db
         .select({ total: chapterCountExpr })
         .from(chapters)
-        .where(eq(chapters.mangaId, mangaRow.id))
+        .where(publicMangaChaptersFilter(mangaRow.id))
         .then((rows) => rows[0]?.total ?? 0),
       db
         .select({
@@ -155,10 +163,11 @@ export class ChapterRepository {
           groupName: chapters.groupName,
           viewCount: chapterViewCountExpr,
           passwordHash: chapters.passwordHash,
+          interactionBoostEnabled: chapters.interactionBoostEnabled,
           isOneshot: chapters.isOneshot,
         })
         .from(chapters)
-        .where(eq(chapters.mangaId, mangaRow.id))
+        .where(publicMangaChaptersFilter(mangaRow.id))
         .orderBy(desc(chapters.number), desc(chapters.id))
         .limit(query.limit)
         .offset(offset),
@@ -189,10 +198,11 @@ export class ChapterRepository {
         title: chapters.title,
         date: chapters.date,
         passwordHash: chapters.passwordHash,
+        interactionBoostEnabled: chapters.interactionBoostEnabled,
         isOneshot: chapters.isOneshot,
       })
       .from(chapters)
-      .where(eq(chapters.mangaId, mangaItem.id))
+      .where(publicMangaChaptersFilter(mangaItem.id))
       .orderBy(desc(chapters.number), desc(chapters.id));
 
     return {
@@ -225,7 +235,9 @@ export class ChapterRepository {
         chapterPagesFilePrefix: chapters.pagesFilePrefix,
         chapterPagesUpdatedAt: chapters.pagesUpdatedAt,
         chapterIsOneshot: chapters.isOneshot,
+        chapterInteractionBoostEnabled: chapters.interactionBoostEnabled,
         chapterPasswordHash: chapters.passwordHash,
+        chapterProcessingState: chapters.processingState,
       })
       .from(chapters)
       .innerJoin(manga, eq(manga.id, chapters.mangaId))
@@ -237,8 +249,16 @@ export class ChapterRepository {
       return { kind: "not_found" };
     }
 
+    if (isProcessingChapterState(chapterRow.chapterProcessingState)) {
+      return {
+        kind: "forbidden",
+        reason: "processing",
+      };
+    }
+
     const chapterAccess = getPublicChapterAccess({
       chapterPasswordHash: chapterRow.chapterPasswordHash,
+      chapterInteractionBoostEnabled: chapterRow.chapterInteractionBoostEnabled,
       chapterIsOneshot: chapterRow.chapterIsOneshot,
       mangaOneshotLocked: chapterRow.oneshotLocked,
     });
@@ -256,16 +276,18 @@ export class ChapterRepository {
         number: chapters.number,
         title: chapters.title,
         passwordHash: chapters.passwordHash,
+        interactionBoostEnabled: chapters.interactionBoostEnabled,
         isOneshot: chapters.isOneshot,
       })
       .from(chapters)
-      .where(eq(chapters.mangaId, chapterRow.mangaId))
+      .where(publicMangaChaptersFilter(chapterRow.mangaId))
       .orderBy(asc(chapters.number), asc(chapters.id));
 
     const navigableChapters = mangaChapters.map((chapter) => ({
       ...chapter,
       access: getPublicChapterAccess({
         chapterPasswordHash: chapter.passwordHash,
+        chapterInteractionBoostEnabled: chapter.interactionBoostEnabled,
         chapterIsOneshot: chapter.isOneshot,
         mangaOneshotLocked: chapterRow.oneshotLocked,
       }),
@@ -323,7 +345,9 @@ export class ChapterRepository {
         chapterPagesUpdatedAt: chapters.pagesUpdatedAt,
         chapterPageDeliveryMode: chapters.pageDeliveryMode,
         chapterIsOneshot: chapters.isOneshot,
+        chapterInteractionBoostEnabled: chapters.interactionBoostEnabled,
         chapterPasswordHash: chapters.passwordHash,
+        chapterProcessingState: chapters.processingState,
       })
       .from(chapters)
       .innerJoin(manga, eq(manga.id, chapters.mangaId))
@@ -335,8 +359,16 @@ export class ChapterRepository {
       return { kind: "not_found" };
     }
 
+    if (isProcessingChapterState(chapterRow.chapterProcessingState)) {
+      return {
+        kind: "forbidden",
+        reason: "processing",
+      };
+    }
+
     const chapterAccess = getPublicChapterAccess({
       chapterPasswordHash: chapterRow.chapterPasswordHash,
+      chapterInteractionBoostEnabled: chapterRow.chapterInteractionBoostEnabled,
       chapterIsOneshot: chapterRow.chapterIsOneshot,
       mangaOneshotLocked: chapterRow.oneshotLocked,
     });

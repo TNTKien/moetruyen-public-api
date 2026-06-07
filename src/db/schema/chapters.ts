@@ -28,6 +28,7 @@ export const chapters = pgTable(
     processingPagesJson: text("processing_pages_json"),
     processingUpdatedAt: bigint("processing_updated_at", { mode: "number" }),
     isOneshot: boolean("is_oneshot").default(false).notNull(),
+    interactionBoostEnabled: boolean("interaction_boost_enabled").default(false).notNull(),
     passwordHash: text("password_hash"),
     passwordSalt: text("password_salt"),
     passwordUpdatedAt: bigint("password_updated_at", { mode: "number" }),

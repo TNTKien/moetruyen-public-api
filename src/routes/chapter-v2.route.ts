@@ -5,6 +5,7 @@ import { chapterListQuerySchema, chapterPageAccessBodySchema, chapterPageAccessS
 import { errorEnvelopeSchema, successEnvelopeSchema } from "../contracts/common.js";
 import { mangaIdParamsSchema } from "../contracts/manga.js";
 import { CACHE_CONTROL } from "../lib/cache.js";
+import { getChapterForbiddenError } from "../lib/chapter-forbidden.js";
 import { AppError } from "../lib/errors.js";
 import { getPaginationMeta } from "../lib/pagination.js";
 import type { AppBindings } from "../lib/request-id.js";
@@ -137,7 +138,7 @@ chapterRouteV2.get(
         },
       },
       403: {
-        description: "Chapter requires password or is locked",
+        description: "Chapter requires password, interaction boost, is processing, or is locked",
         content: {
           "application/json": {
             schema: resolver(errorEnvelopeSchema),
@@ -168,9 +169,11 @@ chapterRouteV2.get(
     }
 
     if (result.kind === "forbidden") {
+      const error = getChapterForbiddenError(result.reason);
+
       throw new AppError({
-        code: result.reason === "password_required" ? "PASSWORD_REQUIRED" : "CHAPTER_LOCKED",
-        message: result.reason === "password_required" ? "Password required to access this chapter" : "Chapter is locked",
+        code: error.code,
+        message: error.message,
         status: 403,
       });
     }
@@ -217,7 +220,7 @@ chapterRouteV2.post(
         },
       },
       403: {
-        description: "Chapter requires password or is locked",
+        description: "Chapter requires password, interaction boost, is processing, or is locked",
         content: {
           "application/json": {
             schema: resolver(errorEnvelopeSchema),
@@ -258,9 +261,11 @@ chapterRouteV2.post(
     }
 
     if (result.kind === "forbidden") {
+      const error = getChapterForbiddenError(result.reason);
+
       throw new AppError({
-        code: result.reason === "password_required" ? "PASSWORD_REQUIRED" : "CHAPTER_LOCKED",
-        message: result.reason === "password_required" ? "Password required to access this chapter" : "Chapter is locked",
+        code: error.code,
+        message: error.message,
         status: 403,
       });
     }

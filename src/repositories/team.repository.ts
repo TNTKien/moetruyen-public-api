@@ -55,6 +55,7 @@ interface TeamUpdateRow {
   chapter_date: string | null;
   chapter_pages: number | null;
   chapter_is_oneshot: boolean;
+  chapter_interaction_boost_enabled: boolean;
   chapter_group_name: string | null;
   chapter_password_hash: string | null;
 }
@@ -132,6 +133,7 @@ const mapTeamUpdateItem = (row: TeamUpdateRow): TeamUpdateItem => ({
     pages: row.chapter_pages,
     access: getPublicChapterAccess({
       chapterPasswordHash: row.chapter_password_hash,
+      chapterInteractionBoostEnabled: row.chapter_interaction_boost_enabled,
       chapterIsOneshot: row.chapter_is_oneshot,
       mangaOneshotLocked: row.manga_oneshot_locked,
     }),
@@ -533,6 +535,7 @@ export class TeamRepository {
           FROM chapters c
           JOIN manga m ON m.id = c.manga_id
           WHERE COALESCE(m.is_hidden, 0) = 0
+            AND lower(COALESCE(c.processing_state, '')) <> 'processing'
             AND ${buildTeamGroupNameMatchSql(effectiveGroupSql)}
         `,
         [safeTeamName, safeTeamName, safeTeamName],
@@ -550,11 +553,13 @@ export class TeamRepository {
             c.date AS chapter_date,
             c.pages AS chapter_pages,
             COALESCE(c.is_oneshot, false) AS chapter_is_oneshot,
+            COALESCE(c.interaction_boost_enabled, false) AS chapter_interaction_boost_enabled,
             c.group_name AS chapter_group_name,
             c.password_hash AS chapter_password_hash
           FROM chapters c
           JOIN manga m ON m.id = c.manga_id
           WHERE COALESCE(m.is_hidden, 0) = 0
+            AND lower(COALESCE(c.processing_state, '')) <> 'processing'
             AND ${buildTeamGroupNameMatchSql(effectiveGroupSql)}
           ORDER BY c.id DESC
           LIMIT $4
