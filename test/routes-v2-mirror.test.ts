@@ -153,6 +153,32 @@ describe("public api v2 mirrored routes", () => {
     expect(body.data.chapter.groups).toEqual([{ id: 9, name: "Test Group" }]);
   });
 
+  it("maps interaction-boosted chapter reader access to 403", async () => {
+    chapterService.getPublicChapterReaderById = async () => ({
+      kind: "forbidden",
+      reason: "interaction_boost_enabled",
+    });
+
+    const response = await app.request("http://local/v2/chapters/99");
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error.code).toBe("INTERACTION_BOOST_REQUIRED");
+  });
+
+  it("maps processing chapter reader access to 403", async () => {
+    chapterService.getPublicChapterReaderById = async () => ({
+      kind: "forbidden",
+      reason: "processing",
+    });
+
+    const response = await app.request("http://local/v2/chapters/99");
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error.code).toBe("CHAPTER_PROCESSING");
+  });
+
   it("returns v2 IMGX page-access grants", async () => {
     let receivedChapterId: number | undefined;
     let receivedPageIndexes: number[] | undefined;
@@ -225,6 +251,25 @@ describe("public api v2 mirrored routes", () => {
     });
   });
 
+  it("maps interaction-boosted chapter page access to 403", async () => {
+    chapterService.getPublicChapterPageAccessById = async () => ({
+      kind: "forbidden",
+      reason: "interaction_boost_enabled",
+    });
+
+    const response = await app.request("http://local/v2/chapters/99/page-access", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ pageIndexes: [0] }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error.code).toBe("INTERACTION_BOOST_REQUIRED");
+  });
+
   it("returns v2 recent comments", async () => {
     commentService.listRecentPublicComments = async () => ({ items: [], total: 0 });
     const response = await app.request("http://local/v2/comments/recent");
@@ -241,6 +286,19 @@ describe("public api v2 mirrored routes", () => {
     commentService.listPublicChapterCommentsByChapterId = async () => ({ items: [], total: 0 });
     const response = await app.request("http://local/v2/comments/chapters/99");
     expect(response.status).toBe(200);
+  });
+
+  it("maps processing chapter comments to 403", async () => {
+    commentService.listPublicChapterCommentsByChapterId = async () => ({
+      kind: "forbidden",
+      reason: "processing",
+    });
+
+    const response = await app.request("http://local/v2/comments/chapters/99");
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error.code).toBe("CHAPTER_PROCESSING");
   });
 
   it("returns v2 genres", async () => {

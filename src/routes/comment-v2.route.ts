@@ -6,6 +6,7 @@ import { chapterReaderParamsSchema } from "../contracts/chapter.js";
 import { commentListQuerySchema, commentMangaParamsSchema, commentThreadItemSchema, recentCommentItemSchema } from "../contracts/comment.js";
 import { errorEnvelopeSchema, successEnvelopeSchema } from "../contracts/common.js";
 import { CACHE_CONTROL } from "../lib/cache.js";
+import { getChapterForbiddenError } from "../lib/chapter-forbidden.js";
 import { AppError } from "../lib/errors.js";
 import { getPaginationMeta } from "../lib/pagination.js";
 import type { AppBindings } from "../lib/request-id.js";
@@ -133,7 +134,7 @@ commentRouteV2.get(
         },
       },
       403: {
-        description: "Chapter requires password or is locked",
+        description: "Chapter requires password, interaction boost, is processing, or is locked",
         content: {
           "application/json": {
             schema: resolver(errorEnvelopeSchema),
@@ -166,9 +167,11 @@ commentRouteV2.get(
         });
       }
 
+      const error = getChapterForbiddenError(result.reason);
+
       throw new AppError({
-        code: result.reason === "password_required" ? "PASSWORD_REQUIRED" : "CHAPTER_LOCKED",
-        message: result.reason === "password_required" ? "Password required to access this chapter" : "Chapter is locked",
+        code: error.code,
+        message: error.message,
         status: 403,
       });
     }

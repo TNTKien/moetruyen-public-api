@@ -3,7 +3,7 @@ import { z } from "zod";
 import { groupSummarySchema, mangaIdParamsSchema } from "./manga.js";
 import { DEFAULT_LIMIT, DEFAULT_PAGE, MAX_LIMIT } from "../lib/pagination.js";
 
-export const chapterAccessSchema = z.enum(["public", "password_required", "locked"]);
+export const chapterAccessSchema = z.enum(["public", "password_required", "interaction_boost_enabled", "locked"]);
 
 const chapterListMangaSchema = z.object({
   id: z.number().int().positive(),

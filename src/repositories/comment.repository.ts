@@ -1,6 +1,6 @@
 import type { CommentAuthor, CommentListQuery, CommentReplyItem, CommentThreadItem, RecentCommentItem } from "../contracts/comment.js";
 import { pool } from "../db/client.js";
-import { getPublicChapterAccess, type PublicChapterAccess } from "../lib/chapter-access.js";
+import { getPublicChapterAccess, isProcessingChapterState, type ChapterForbiddenReason } from "../lib/chapter-access.js";
 import { buildUserAvatarUrl, formatNumericText, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
 
 interface CommentAuthorFields {
@@ -22,6 +22,7 @@ interface RecentCommentRow extends CommentAuthorFields {
   chapter_id: number | null;
   chapter_number: string | number | null;
   chapter_password_hash: string | null;
+  chapter_interaction_boost_enabled: boolean | null;
   chapter_is_oneshot: boolean | null;
 }
 
@@ -43,12 +44,14 @@ interface ChapterCommentLookupRow {
   chapter_id: number;
   chapter_number: string | number;
   chapter_password_hash: string | null;
+  chapter_interaction_boost_enabled: boolean;
+  chapter_processing_state: string | null;
   chapter_is_oneshot: boolean;
 }
 
 export type ChapterCommentsLookupResult =
   | { kind: "not_found" }
-  | { kind: "forbidden"; reason: Exclude<PublicChapterAccess, "public"> };
+  | { kind: "forbidden"; reason: ChapterForbiddenReason };
 
 const toNonNegativeInt = (value: string | number | null | undefined): number => {
   const parsed = typeof value === "number" ? value : Number(value ?? 0);
@@ -153,6 +156,7 @@ export class CommentRepository {
             ch.id AS chapter_id,
             c.chapter_number,
             ch.password_hash AS chapter_password_hash,
+            COALESCE(ch.interaction_boost_enabled, false) AS chapter_interaction_boost_enabled,
             COALESCE(ch.is_oneshot, false) AS chapter_is_oneshot,
             c.author AS author_name,
             c.author_user_id,
@@ -187,6 +191,7 @@ export class CommentRepository {
             ch.id,
             c.chapter_number,
             ch.password_hash,
+            ch.interaction_boost_enabled,
             ch.is_oneshot,
             c.author,
             c.author_user_id,
@@ -206,6 +211,7 @@ export class CommentRepository {
         const chapterAccess = row.chapter_id
           ? getPublicChapterAccess({
               chapterPasswordHash: row.chapter_password_hash,
+              chapterInteractionBoostEnabled: Boolean(row.chapter_interaction_boost_enabled),
               chapterIsOneshot: Boolean(row.chapter_is_oneshot),
               mangaOneshotLocked: row.manga_oneshot_locked,
             })
@@ -362,6 +368,8 @@ export class CommentRepository {
           c.id AS chapter_id,
           c.number AS chapter_number,
           c.password_hash AS chapter_password_hash,
+          COALESCE(c.interaction_boost_enabled, false) AS chapter_interaction_boost_enabled,
+          c.processing_state AS chapter_processing_state,
           COALESCE(c.is_oneshot, false) AS chapter_is_oneshot
         FROM chapters c
         JOIN manga m ON m.id = c.manga_id
@@ -378,8 +386,16 @@ export class CommentRepository {
       return { kind: "not_found" };
     }
 
+    if (isProcessingChapterState(chapterRow.chapter_processing_state)) {
+      return {
+        kind: "forbidden",
+        reason: "processing",
+      };
+    }
+
     const chapterAccess = getPublicChapterAccess({
       chapterPasswordHash: chapterRow.chapter_password_hash,
+      chapterInteractionBoostEnabled: chapterRow.chapter_interaction_boost_enabled,
       chapterIsOneshot: chapterRow.chapter_is_oneshot,
       mangaOneshotLocked: chapterRow.manga_oneshot_locked,
     });
