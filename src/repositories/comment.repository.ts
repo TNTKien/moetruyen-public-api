@@ -1,6 +1,7 @@
 import type { CommentAuthor, CommentListQuery, CommentReplyItem, CommentThreadItem, RecentCommentItem } from "../contracts/comment.js";
 import { pool } from "../db/client.js";
 import { getPublicChapterAccess, isProcessingChapterState, type ChapterForbiddenReason } from "../lib/chapter-access.js";
+import { publicMangaVisibilitySql } from "../lib/public-manga-visibility.js";
 import { buildUserAvatarUrl, formatNumericText, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
 
 interface CommentAuthorFields {
@@ -133,7 +134,7 @@ export class CommentRepository {
           WHERE c.status = 'visible'
             AND c.parent_id IS NULL
             AND COALESCE(c.client_request_id, '') NOT ILIKE 'forum-%'
-            AND COALESCE(m.is_hidden, 0) = 0
+            AND ${publicMangaVisibilitySql("m")}
         `,
       ),
       pool.query<RecentCommentRow>(
@@ -179,7 +180,7 @@ export class CommentRepository {
           WHERE c.status = 'visible'
             AND c.parent_id IS NULL
             AND COALESCE(c.client_request_id, '') NOT ILIKE 'forum-%'
-            AND COALESCE(m.is_hidden, 0) = 0
+            AND ${publicMangaVisibilitySql("m")}
           GROUP BY
             c.id,
             c.content,
@@ -252,7 +253,7 @@ export class CommentRepository {
         SELECT id AS manga_id, slug AS manga_slug
         FROM manga
         WHERE id = $1
-          AND COALESCE(is_hidden, 0) = 0
+          AND ${publicMangaVisibilitySql("manga")}
         LIMIT 1
       `,
       [mangaId],
@@ -374,7 +375,7 @@ export class CommentRepository {
         FROM chapters c
         JOIN manga m ON m.id = c.manga_id
         WHERE c.id = $1
-          AND COALESCE(m.is_hidden, 0) = 0
+          AND ${publicMangaVisibilitySql("m")}
         LIMIT 1
       `,
       [chapterId],
@@ -412,7 +413,7 @@ export class CommentRepository {
     const safeChapterNumberText = chapterNumberText ?? String(chapterRow.chapter_number);
 
     const { rows: mangaRows } = await pool.query<{ manga_slug: string }>(
-      `SELECT slug AS manga_slug FROM manga WHERE id = $1 LIMIT 1`,
+      `SELECT slug AS manga_slug FROM manga WHERE id = $1 AND ${publicMangaVisibilitySql("manga")} LIMIT 1`,
       [chapterRow.manga_id],
     );
     const mangaSlug = mangaRows[0]?.manga_slug ?? "";

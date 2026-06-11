@@ -8,6 +8,7 @@ import { manga } from "../db/schema/manga.js";
 import { getPublicChapterAccess, isProcessingChapterState, type ChapterForbiddenReason, type PublicChapterAccess } from "../lib/chapter-access.js";
 import { createImgxPageGrant } from "../lib/imgx.js";
 import { buildChapterAssetUrl, buildChapterPageStorageKey, buildChapterPageUrls, formatNumericText, normalizeImgxPageExtension, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
+import { publicMangaVisibilityFilter } from "../lib/public-manga-visibility.js";
 
 export type ChapterReaderLookupResult =
   | { kind: "ok"; data: ChapterReader }
@@ -133,7 +134,7 @@ export class ChapterRepository {
         oneshotLocked: manga.oneshotLocked,
       })
       .from(manga)
-      .where(and(eq(manga.id, mangaId), eq(manga.isHidden, 0)))
+      .where(and(eq(manga.id, mangaId), publicMangaVisibilityFilter()))
       .limit(1)
       .then((rows) => rows[0] ?? null);
   }
@@ -241,7 +242,7 @@ export class ChapterRepository {
       })
       .from(chapters)
       .innerJoin(manga, eq(manga.id, chapters.mangaId))
-      .where(and(eq(chapters.id, chapterId), eq(manga.isHidden, 0)))
+      .where(and(eq(chapters.id, chapterId), publicMangaVisibilityFilter()))
       .limit(1)
       .then((rows) => rows[0] ?? null);
 
@@ -351,7 +352,7 @@ export class ChapterRepository {
       })
       .from(chapters)
       .innerJoin(manga, eq(manga.id, chapters.mangaId))
-      .where(and(eq(chapters.id, chapterId), eq(manga.isHidden, 0)))
+      .where(and(eq(chapters.id, chapterId), publicMangaVisibilityFilter()))
       .limit(1)
       .then((rows) => rows[0] ?? null);
 

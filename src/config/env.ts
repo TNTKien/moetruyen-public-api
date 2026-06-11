@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { parseHiddenMangaIds } from "../lib/hidden-manga.js";
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(8787),
@@ -17,6 +19,23 @@ const envSchema = z.object({
   TEAM_AVATAR_BASE_URL: z.string().url().default("https://moetruyen.net"),
   TEAM_COVER_BASE_URL: z.string().url().default("https://moetruyen.net"),
   ALLOWED_ORIGINS: z.string().default("https://example.com"),
+  HIDDEN_MANGA_IDS: z
+    .string()
+    .default("")
+    .transform((value, ctx) => {
+      const parsed = parseHiddenMangaIds(value);
+
+      if (parsed.ok) {
+        return parsed.value;
+      }
+
+      ctx.addIssue({
+        code: "custom",
+        message: parsed.message,
+      });
+
+      return [];
+    }),
   RATE_LIMIT_ENABLED: z
     .enum(["true", "false"])
     .default("true")

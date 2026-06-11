@@ -1,5 +1,6 @@
 import type { UserCommentItem, UserCommentsQuery, UserSummary } from "../contracts/user.js";
 import { pool } from "../db/client.js";
+import { publicMangaVisibilitySql } from "../lib/public-manga-visibility.js";
 import { buildUserAvatarUrl, formatNumericText, toIsoDateString } from "../lib/public-content.js";
 
 interface UserProfileRow {
@@ -202,7 +203,7 @@ export class UserRepository {
           JOIN manga m ON m.id = c.manga_id
           WHERE c.author_user_id = $1
             AND c.status = 'visible'
-            AND COALESCE(m.is_hidden, 0) = 0
+            AND ${publicMangaVisibilitySql("m")}
 
           UNION ALL
 
@@ -286,7 +287,7 @@ export class UserRepository {
           LEFT JOIN chapters ch ON ch.manga_id = c.manga_id AND ch.number = c.chapter_number
           WHERE c.author_user_id = $1
             AND c.status = 'visible'
-            AND COALESCE(m.is_hidden, 0) = 0
+            AND ${publicMangaVisibilitySql("m")}
 
           UNION ALL
 

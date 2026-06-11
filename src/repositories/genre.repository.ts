@@ -4,6 +4,7 @@ import type { GenreListItem } from "../contracts/genre.js";
 import { db } from "../db/client.js";
 import { genres, mangaGenres } from "../db/schema/genres.js";
 import { manga } from "../db/schema/manga.js";
+import { publicMangaVisibilityFilter } from "../lib/public-manga-visibility.js";
 
 export class GenreRepository {
   async listPublicGenres(): Promise<GenreListItem[]> {
@@ -15,7 +16,7 @@ export class GenreRepository {
       })
       .from(genres)
       .leftJoin(mangaGenres, eq(mangaGenres.genreId, genres.id))
-      .leftJoin(manga, and(eq(manga.id, mangaGenres.mangaId), eq(manga.isHidden, 0)))
+      .leftJoin(manga, and(eq(manga.id, mangaGenres.mangaId), publicMangaVisibilityFilter()))
       .groupBy(genres.id, genres.name)
       .orderBy(asc(genres.name));
   }
