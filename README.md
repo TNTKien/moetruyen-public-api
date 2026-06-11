@@ -43,6 +43,7 @@ bun run build
 
 ### Optional
 - `RATE_LIMIT_ENABLED`
+- `HIDDEN_MANGA_IDS`
 - `IMGX_ENABLED`
 - `IMGX_SECRET`
 - `IMGX_SESSION_HMAC_SECRET`
@@ -56,6 +57,7 @@ bun run build
 
 - CORS uses exact origins from `ALLOWED_ORIGINS`.
 - Global rate limiting is enabled by configuration.
+- `HIDDEN_MANGA_IDS` accepts comma-separated positive manga IDs and hides those manga across public API responses.
 - IMGX page access requires `IMGX_ENABLED=true`, `IMGX_SECRET`, and `IMGX_SESSION_HMAC_SECRET`.
 - This repo does not own primary database migrations.
 - Use `bun run db:pull` to refresh Drizzle schema from the database.

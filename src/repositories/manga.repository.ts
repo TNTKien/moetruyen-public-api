@@ -17,6 +17,7 @@ import {
   toIsoDateString,
   type PublicMangaStatus,
 } from "../lib/public-content.js";
+import { publicMangaVisibilityFilter, publicMangaVisibilitySql } from "../lib/public-manga-visibility.js";
 
 export interface PublicMangaListResult {
   items: MangaListItem[];
@@ -391,7 +392,7 @@ const mapPublicMangaItems = async (
 };
 
 const buildMangaConditions = (query: Pick<MangaListQuery, "q" | "genre" | "status"> & { hasChapters?: MangaListQuery["hasChapters"] }): SQL<unknown>[] => {
-  const conditions: SQL<unknown>[] = [eq(manga.isHidden, 0), buildHasChaptersFilter(query.hasChapters ?? 0)];
+  const conditions: SQL<unknown>[] = [publicMangaVisibilityFilter(), buildHasChaptersFilter(query.hasChapters ?? 0)];
 
   if (query.q) {
     conditions.push(buildSearchFilter(query.q));
@@ -409,7 +410,7 @@ const buildMangaConditions = (query: Pick<MangaListQuery, "q" | "genre" | "statu
 };
 
 const buildMangaConditionsV2 = (query: Pick<MangaV2ListQuery, "q" | "genre" | "genrex" | "status"> & { hasChapters?: MangaV2ListQuery["hasChapters"] }): SQL<unknown>[] => {
-  const conditions: SQL<unknown>[] = [eq(manga.isHidden, 0), buildHasChaptersFilter(query.hasChapters ?? 0)];
+  const conditions: SQL<unknown>[] = [publicMangaVisibilityFilter(), buildHasChaptersFilter(query.hasChapters ?? 0)];
 
   if (query.q) {
     conditions.push(buildSearchFilter(query.q));
@@ -448,7 +449,7 @@ export class MangaRepository {
         WITH target_manga AS (
           SELECT m.id
           FROM manga m
-          WHERE COALESCE(m.is_hidden, 0) = 0
+          WHERE ${publicMangaVisibilitySql("m")}
             AND m.id = ANY($1::int[])
         ),
         comment_totals AS (
@@ -540,7 +541,7 @@ export class MangaRepository {
       })
       .from(manga)
       .leftJoin(chapterStats, eq(chapterStats.mangaId, manga.id))
-      .where(and(eq(manga.isHidden, 0), inArray(manga.id, ids)));
+      .where(and(publicMangaVisibilityFilter(), inArray(manga.id, ids)));
 
     const items = await mapPublicMangaItems(rows);
     const itemsById = new Map(items.map((item) => [item.id, item]));
@@ -629,7 +630,7 @@ export class MangaRepository {
               COALESCE(chapter_totals.chapter_total_views, 0)::bigint AS ranking_value
             FROM manga m
             LEFT JOIN chapter_totals ON chapter_totals.manga_id = m.id
-            WHERE COALESCE(m.is_hidden, 0) = 0
+            WHERE ${publicMangaVisibilitySql("m")}
               AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
           )
           SELECT COUNT(*)::bigint AS total
@@ -662,7 +663,7 @@ export class MangaRepository {
             FROM manga m
             LEFT JOIN period_totals ON period_totals.manga_id = m.id
             LEFT JOIN chapter_totals ON chapter_totals.manga_id = m.id
-            WHERE COALESCE(m.is_hidden, 0) = 0
+            WHERE ${publicMangaVisibilitySql("m")}
               AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
               AND COALESCE(period_totals.period_views, 0) > 0
           )
@@ -686,7 +687,7 @@ export class MangaRepository {
               COALESCE(chapter_totals.chapter_total_views, 0)::bigint AS ranking_value
             FROM manga m
             LEFT JOIN chapter_totals ON chapter_totals.manga_id = m.id
-            WHERE COALESCE(m.is_hidden, 0) = 0
+            WHERE ${publicMangaVisibilitySql("m")}
               AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
           )
           SELECT manga_id, ranking_value
@@ -721,7 +722,7 @@ export class MangaRepository {
             FROM manga m
             LEFT JOIN period_totals ON period_totals.manga_id = m.id
             LEFT JOIN chapter_totals ON chapter_totals.manga_id = m.id
-            WHERE COALESCE(m.is_hidden, 0) = 0
+            WHERE ${publicMangaVisibilitySql("m")}
               AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
               AND COALESCE(period_totals.period_views, 0) > 0
           )
@@ -817,7 +818,7 @@ export class MangaRepository {
           COALESCE(bookmark_totals.bookmark_count, 0)::bigint AS ranking_value
         FROM manga m
         LEFT JOIN bookmark_totals ON bookmark_totals.manga_id = m.id
-        WHERE COALESCE(m.is_hidden, 0) = 0
+        WHERE ${publicMangaVisibilitySql("m")}
           AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
       )
       SELECT COUNT(*)::bigint AS total
@@ -859,7 +860,7 @@ export class MangaRepository {
             COALESCE(bookmark_totals.bookmark_count, 0)::bigint AS ranking_value
           FROM manga m
           LEFT JOIN bookmark_totals ON bookmark_totals.manga_id = m.id
-          WHERE COALESCE(m.is_hidden, 0) = 0
+          WHERE ${publicMangaVisibilitySql("m")}
             AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
         )
         SELECT manga_id, ranking_value
@@ -929,7 +930,7 @@ export class MangaRepository {
           COALESCE(comment_totals.comment_count, 0)::bigint AS ranking_value
         FROM manga m
         LEFT JOIN comment_totals ON comment_totals.manga_id = m.id
-        WHERE COALESCE(m.is_hidden, 0) = 0
+        WHERE ${publicMangaVisibilitySql("m")}
           AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
       )
       SELECT COUNT(*)::bigint AS total
@@ -961,7 +962,7 @@ export class MangaRepository {
             COALESCE(comment_totals.comment_count, 0)::bigint AS ranking_value
           FROM manga m
           LEFT JOIN comment_totals ON comment_totals.manga_id = m.id
-          WHERE COALESCE(m.is_hidden, 0) = 0
+          WHERE ${publicMangaVisibilitySql("m")}
             AND EXISTS (SELECT 1 FROM chapters c_has WHERE c_has.manga_id = m.id)
         )
         SELECT manga_id, ranking_value
@@ -1049,7 +1050,7 @@ export class MangaRepository {
         total: sql<number>`count(*)`.mapWith(Number),
       })
       .from(manga)
-      .where(eq(manga.isHidden, 0));
+      .where(publicMangaVisibilityFilter());
 
     const bounds = boundsRows[0];
     const totalVisible = bounds?.total ?? 0;
@@ -1064,7 +1065,7 @@ export class MangaRepository {
       const allVisibleRows = await db
         .select({ id: manga.id })
         .from(manga)
-        .where(eq(manga.isHidden, 0))
+        .where(publicMangaVisibilityFilter())
         .orderBy(asc(manga.id))
         .limit(targetCount);
 
@@ -1082,7 +1083,7 @@ export class MangaRepository {
         db
           .select({ id: manga.id })
           .from(manga)
-          .where(eq(manga.isHidden, 0))
+          .where(publicMangaVisibilityFilter())
           .orderBy(asc(manga.id))
           .limit(1)
           .offset(offset),
@@ -1118,7 +1119,7 @@ export class MangaRepository {
       })
       .from(manga)
       .leftJoin(chapterStats, eq(chapterStats.mangaId, manga.id))
-      .where(and(eq(manga.id, id), eq(manga.isHidden, 0)))
+      .where(and(eq(manga.id, id), publicMangaVisibilityFilter()))
       .limit(1)
       .then((rows) => rows[0] ?? null);
 
@@ -1154,7 +1155,7 @@ export class MangaRepository {
         status: manga.status,
       })
       .from(manga)
-      .where(and(eq(manga.isHidden, 0), buildSearchFilter(query.q)))
+      .where(and(publicMangaVisibilityFilter(), buildSearchFilter(query.q)))
       .orderBy(desc(manga.updatedAt), desc(manga.id))
       .limit(query.limit);
 

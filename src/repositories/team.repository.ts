@@ -3,6 +3,7 @@ import type { TeamListQuery, TeamMangaListQuery, TeamMember, TeamSummary, TeamUp
 import { mangaRepository } from "./manga.repository.js";
 import { pool } from "../db/client.js";
 import { getPublicChapterAccess } from "../lib/chapter-access.js";
+import { publicMangaVisibilitySql } from "../lib/public-manga-visibility.js";
 import { buildTeamAvatarUrl, buildTeamCoverUrl, buildUserAvatarUrl, formatNumericText, parseNumericValue, toIsoDateString } from "../lib/public-content.js";
 
 interface TeamRow {
@@ -353,7 +354,7 @@ export class TeamRepository {
             COALESCE(SUM(COALESCE(chapter_stats.chapter_count, 0)), 0) AS chapter_count,
             COALESCE(SUM(COALESCE(comment_stats.comment_count, 0)), 0) AS comment_count
           FROM translation_teams t
-          LEFT JOIN manga m ON COALESCE(m.is_hidden, 0) = 0 AND ${teamNameJoinSql}
+          LEFT JOIN manga m ON ${publicMangaVisibilitySql("m")} AND ${teamNameJoinSql}
           LEFT JOIN chapter_stats ON chapter_stats.manga_id = m.id
           LEFT JOIN comment_stats ON comment_stats.manga_id = m.id
           WHERE t.status = 'approved'
@@ -430,7 +431,7 @@ export class TeamRepository {
                 FROM chapters c
                 GROUP BY c.manga_id
               ) chapter_stats ON chapter_stats.manga_id = m.id
-              WHERE COALESCE(m.is_hidden, 0) = 0
+              WHERE ${publicMangaVisibilitySql("m")}
                 AND ${buildTeamGroupNameMatchSql("m.group_name")}
             `,
             [safeTeamName, safeTeamName, safeTeamName],
@@ -447,7 +448,7 @@ export class TeamRepository {
                 WHERE c.status = 'visible'
                 GROUP BY c.manga_id
               ) comment_stats ON comment_stats.manga_id = m.id
-              WHERE COALESCE(m.is_hidden, 0) = 0
+              WHERE ${publicMangaVisibilitySql("m")}
                 AND ${buildTeamGroupNameMatchSql("m.group_name")}
             `,
             [safeTeamName, safeTeamName, safeTeamName],
@@ -534,7 +535,7 @@ export class TeamRepository {
           SELECT COUNT(*) AS total
           FROM chapters c
           JOIN manga m ON m.id = c.manga_id
-          WHERE COALESCE(m.is_hidden, 0) = 0
+          WHERE ${publicMangaVisibilitySql("m")}
             AND lower(COALESCE(c.processing_state, '')) <> 'processing'
             AND ${buildTeamGroupNameMatchSql(effectiveGroupSql)}
         `,
@@ -558,7 +559,7 @@ export class TeamRepository {
             c.password_hash AS chapter_password_hash
           FROM chapters c
           JOIN manga m ON m.id = c.manga_id
-          WHERE COALESCE(m.is_hidden, 0) = 0
+          WHERE ${publicMangaVisibilitySql("m")}
             AND lower(COALESCE(c.processing_state, '')) <> 'processing'
             AND ${buildTeamGroupNameMatchSql(effectiveGroupSql)}
           ORDER BY c.id DESC
