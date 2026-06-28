@@ -6,3 +6,5 @@ coverage/
 drizzle/
 AGENTS.md
 .sisyphus/
+.superpowers/
+docs/
