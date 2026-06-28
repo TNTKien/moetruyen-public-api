@@ -1,5 +1,5 @@
 import { resolveMangaTopTime, type GenreSummary, type MangaListItem } from "../contracts/manga.js";
-import type { MangaV2Base, MangaV2Include, MangaV2Item, MangaV2RandomQuery, MangaV2SearchQuery, MangaV2Stats, MangaV2TeamMangaQuery, MangaV2TopItem, MangaV2TopQuery } from "../contracts/manga-v2.js";
+import type { MangaV2Base, MangaV2Include, MangaV2Item, MangaV2RandomQuery, MangaV2RecommendationsQuery, MangaV2SearchQuery, MangaV2Stats, MangaV2TeamMangaQuery, MangaV2TopItem, MangaV2TopQuery } from "../contracts/manga-v2.js";
 import { mangaRepository } from "../repositories/manga.repository.js";
 import { teamRepository } from "../repositories/team.repository.js";
 import { mangaService } from "./manga.service.js";
@@ -177,5 +177,18 @@ export const mangaV2Service = {
       items: itemsWithGroups.map((item) => buildMangaV2Item(item, query.include, statsById?.get(item.id))),
       total: result.total,
     };
+  },
+
+  async getPublicMangaRecommendations(id: number, author: string, query: MangaV2RecommendationsQuery): Promise<MangaV2Item[]> {
+    const genreIds = await mangaRepository.getPublicMangaGenreIds(id);
+    const recommendationIds = await mangaRepository.listPublicRecommendationIds(id, author, genreIds);
+
+    if (!recommendationIds.length) return [];
+
+    const items = await mangaRepository.listPublicMangaByIds(recommendationIds);
+    const itemsWithGroups = await attachGroupsToMangaItems(items);
+    const statsById = await buildStatsById(itemsWithGroups, query.include);
+
+    return itemsWithGroups.map((item) => buildMangaV2Item(item, query.include, statsById?.get(item.id)));
   },
 };
