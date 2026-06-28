@@ -1201,7 +1201,8 @@ export class MangaRepository {
     if (!normalizedGenreIds.length) return [];
     const requiredMatches = normalizedGenreIds.length < 3 ? normalizedGenreIds.length : 3;
     const anchorId = 1 + Math.floor(Math.random() * maxMangaId);
-    const placeholders = normalizedGenreIds.map(() => "?").join(",");
+    const nextIdx = normalizedGenreIds.length + 1;
+    const placeholders = normalizedGenreIds.map((_, i) => `$${i + 1}`).join(",");
     const visibilityWhere = publicMangaVisibilitySql("m");
     const collectedIds: number[] = [];
     const seenIds = new Set<number>();
@@ -1216,11 +1217,11 @@ export class MangaRepository {
     const buildQuery = (comparison: string) => `
     SELECT m.id FROM manga m
     JOIN manga_genres mg ON mg.manga_id = m.id AND mg.genre_id IN (${placeholders})
-    WHERE ${visibilityWhere} AND m.id ${comparison} ?
+    WHERE ${visibilityWhere} AND m.id ${comparison} $${nextIdx}
     GROUP BY m.id
-    HAVING COUNT(DISTINCT mg.genre_id) >= ?
+    HAVING COUNT(DISTINCT mg.genre_id) >= $${nextIdx + 1}
     ORDER BY m.id ASC
-    LIMIT ?
+    LIMIT $${nextIdx + 2}
   `;
     const baseParams = [...normalizedGenreIds];
     const forwardRows = await pool.query<{ id: number }>(
