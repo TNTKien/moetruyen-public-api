@@ -516,7 +516,7 @@ export class MangaRepository {
     );
   }
 
-  private async listPublicMangaByIds(ids: number[]): Promise<MangaListItem[]> {
+  async listPublicMangaByIds(ids: number[]): Promise<MangaListItem[]> {
     if (ids.length === 0) {
       return [];
     }
