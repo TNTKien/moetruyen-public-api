@@ -23,6 +23,36 @@ const envSchema = z.object({
     .transform((value) => value === "true"),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(1000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(7),
+  RATE_LIMIT_WHITELIST_UAS: z
+    .string()
+    .default("[]")
+    .transform((value, ctx) => {
+      try {
+        const parsed = JSON.parse(value);
+
+        if (
+          !Array.isArray(parsed) ||
+          !parsed.every((item) => typeof item === "string")
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            message: "RATE_LIMIT_WHITELIST_UAS must be a JSON array of strings",
+          });
+
+          return [] as string[];
+        }
+
+        return parsed as string[];
+      } catch {
+        ctx.addIssue({
+          code: "custom",
+          message: "RATE_LIMIT_WHITELIST_UAS must be valid JSON",
+        });
+
+        return [] as string[];
+      }
+    }),
+  RATE_LIMIT_WHITELIST_LIMIT: z.coerce.number().int().min(0).default(0),
   IMGX_ENABLED: z
     .enum(["true", "false"])
     .default("false")
