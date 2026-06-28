@@ -47,6 +47,44 @@ export const globalRateLimitMiddleware =
         statusCode: 429,
         standardHeaders: "draft-6",
         skipFailedRequests: true,
-        skip: (c) => c.req.method === "OPTIONS" || c.req.path === "/health" || c.req.path === "/openapi.json" || c.req.path === "/docs",
+        skip: (c) =>
+          c.req.method === "OPTIONS" ||
+          c.req.path === "/health" ||
+          c.req.path === "/openapi.json" ||
+          c.req.path === "/docs" ||
+          isWhitelistedUa(c),
+        handler: createRateLimitHandler(env.RATE_LIMIT_WINDOW_MS),
+      });
+
+const isWhitelistedUa = (c: Context<AppBindings>): boolean => {
+  if (env.RATE_LIMIT_WHITELIST_UAS.length === 0) return false;
+
+  const ua = c.req.header("user-agent");
+
+  return ua !== undefined && env.RATE_LIMIT_WHITELIST_UAS.includes(ua);
+};
+
+const whitelistLimit = env.RATE_LIMIT_WHITELIST_LIMIT > 0
+  ? env.RATE_LIMIT_WHITELIST_LIMIT
+  : env.RATE_LIMIT_MAX;
+
+export const whitelistRateLimitMiddleware =
+  env.NODE_ENV === "test" ||
+  !env.RATE_LIMIT_ENABLED ||
+  env.RATE_LIMIT_WHITELIST_UAS.length === 0
+    ? null
+    : rateLimiter<AppBindings>({
+        windowMs: env.RATE_LIMIT_WINDOW_MS,
+        limit: whitelistLimit,
+        keyGenerator: getClientKey,
+        statusCode: 429,
+        standardHeaders: "draft-6",
+        skipFailedRequests: true,
+        skip: (c) =>
+          c.req.method === "OPTIONS" ||
+          c.req.path === "/health" ||
+          c.req.path === "/openapi.json" ||
+          c.req.path === "/docs" ||
+          !isWhitelistedUa(c),
         handler: createRateLimitHandler(env.RATE_LIMIT_WINDOW_MS),
       });
