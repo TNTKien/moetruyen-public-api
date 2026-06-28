@@ -8,6 +8,7 @@ export const CACHE_CONTROL = {
   mangaRandom: "no-store",
   mangaDetail: "public, max-age=60, stale-while-revalidate=300",
   mangaChapters: "public, max-age=30, stale-while-revalidate=120",
+  recommendations: "public, max-age=30, stale-while-revalidate=120",
   teamList: "public, max-age=30, stale-while-revalidate=120",
   teamDetail: "public, max-age=60, stale-while-revalidate=300",
   teamMangaList: "public, max-age=30, stale-while-revalidate=120",
