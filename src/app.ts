@@ -7,7 +7,7 @@ import { normalizeDbError } from "./lib/db-errors.js";
 import { isAppError } from "./lib/errors.js";
 import { logger, requestLoggerMiddleware } from "./lib/logger.js";
 import { setupMonitoring } from "./lib/monitoring.js";
-import { globalRateLimitMiddleware } from "./lib/rate-limit.js";
+import { globalRateLimitMiddleware, whitelistRateLimitMiddleware } from "./lib/rate-limit.js";
 import { requestIdMiddleware, type AppBindings } from "./lib/request-id.js";
 import { jsonError } from "./lib/response.js";
 import { mountOpenApiSpec } from "./openapi/spec.js";
@@ -35,6 +35,10 @@ app.use(
   }),
 );
 app.use("*", requestLoggerMiddleware);
+
+if (whitelistRateLimitMiddleware) {
+  app.use("*", whitelistRateLimitMiddleware);
+}
 
 if (globalRateLimitMiddleware) {
   app.use("*", globalRateLimitMiddleware);
