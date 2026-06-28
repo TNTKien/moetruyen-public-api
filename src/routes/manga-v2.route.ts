@@ -3,7 +3,7 @@ import { describeRoute, resolver, validator } from "hono-openapi";
 import { z } from "zod";
 
 import { errorEnvelopeSchema, successEnvelopeSchema } from "../contracts/common.js";
-import { mangaV2DetailQuerySchema, mangaV2IdParamsSchema, mangaV2ItemSchema, mangaV2ListQuerySchema, mangaV2RandomQuerySchema, mangaV2SearchQuerySchema, mangaV2TeamMangaQuerySchema, mangaV2TopItemSchema, mangaV2TopQuerySchema } from "../contracts/manga-v2.js";
+import { mangaV2DetailQuerySchema, mangaV2IdParamsSchema, mangaV2ItemSchema, mangaV2ListQuerySchema, mangaV2RandomQuerySchema, mangaV2RecommendationsQuerySchema, mangaV2SearchQuerySchema, mangaV2TeamMangaQuerySchema, mangaV2TopItemSchema, mangaV2TopQuerySchema } from "../contracts/manga-v2.js";
 import { teamIdParamsSchema } from "../contracts/team.js";
 import { CACHE_CONTROL } from "../lib/cache.js";
 import { AppError } from "../lib/errors.js";
@@ -178,6 +178,62 @@ mangaRouteV2.get(
     c.header("Cache-Control", CACHE_CONTROL.mangaDetail);
 
     return jsonSuccess(c, item);
+  },
+);
+
+mangaRouteV2.get(
+  "/manga/:id/recommendations",
+  describeRoute({
+    tags: ["Manga"],
+    summary: "List manga recommendations (v2)",
+    description: "Returns up to 10 recommended manga based on same author and same genre. Use `include=stats`, `include=genres`, `include=groups`, or combine them to expand each manga item.",
+    responses: {
+      200: {
+        description: "Recommendations list",
+        content: {
+          "application/json": {
+            schema: resolver(successEnvelopeSchema(z.array(mangaV2ItemSchema))),
+          },
+        },
+      },
+      400: {
+        description: "Invalid request parameters",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
+      404: {
+        description: "Manga not found",
+        content: {
+          "application/json": {
+            schema: resolver(errorEnvelopeSchema),
+          },
+        },
+      },
+    },
+  }),
+  validator("param", mangaV2IdParamsSchema, validationHook),
+  validator("query", mangaV2RecommendationsQuerySchema, validationHook),
+  async (c) => {
+    const { id } = c.req.valid("param");
+    const query = c.req.valid("query");
+    const item = await mangaV2Service.getPublicMangaById(id, query.include);
+
+    if (!item) {
+      throw new AppError({
+        code: "MANGA_NOT_FOUND",
+        message: "Manga not found",
+        status: 404,
+      });
+    }
+
+    const recommendations = await mangaV2Service.getPublicMangaRecommendations(id, item.author ?? "", query);
+
+    c.header("Cache-Control", CACHE_CONTROL.recommendations);
+
+    return jsonSuccess(c, recommendations);
   },
 );
 

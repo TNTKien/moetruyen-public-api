@@ -18,6 +18,7 @@ import {
   type PublicMangaStatus,
 } from "../lib/public-content.js";
 import { publicMangaVisibilityFilter, publicMangaVisibilitySql } from "../lib/public-manga-visibility.js";
+import { getOrLoadPool } from "../lib/recommendation-cache.js";
 
 export interface PublicMangaListResult {
   items: MangaListItem[];
@@ -515,7 +516,7 @@ export class MangaRepository {
     );
   }
 
-  private async listPublicMangaByIds(ids: number[]): Promise<MangaListItem[]> {
+  async listPublicMangaByIds(ids: number[]): Promise<MangaListItem[]> {
     if (ids.length === 0) {
       return [];
     }
@@ -1171,6 +1172,115 @@ export class MangaRepository {
       commentCount: item.commentCount,
       status: normalizeMangaStatus(item.status),
     }));
+  }
+  async getPublicMangaGenreIds(mangaId: number): Promise<number[]> {
+    const rows = await db
+      .select({ genreId: mangaGenres.genreId })
+      .from(mangaGenres)
+      .where(eq(mangaGenres.mangaId, mangaId));
+    return rows.map((r) => r.genreId);
+  }
+
+  async listPublicSameAuthorMangaIds(mangaId: number, author: string, limit: number): Promise<number[]> {
+    if (!author || !author.trim()) return [];
+    const { rows } = await pool.query<{ id: number }>(
+      `SELECT m.id FROM manga m
+       WHERE ${publicMangaVisibilitySql("m")}
+         AND m.id <> $1
+         AND lower(replace(replace(m.author, ' ', ''), '.', '')) = lower(replace(replace($2, ' ', ''), '.', ''))
+       ORDER BY m.updated_at DESC
+       LIMIT $3`,
+      [mangaId, author.trim(), limit],
+    );
+    return rows.map((r) => r.id);
+  }
+
+  async listPublicSameGenreMangaIds(mangaId: number, genreIds: number[], limit: number, maxMangaId: number): Promise<number[]> {
+    if (!genreIds.length || !maxMangaId) return [];
+    const normalizedGenreIds = [...new Set(genreIds.filter((id) => id > 0))];
+    if (!normalizedGenreIds.length) return [];
+    const requiredMatches = normalizedGenreIds.length < 3 ? normalizedGenreIds.length : 3;
+    const anchorId = 1 + Math.floor(Math.random() * maxMangaId);
+    const nextIdx = normalizedGenreIds.length + 1;
+    const placeholders = normalizedGenreIds.map((_, i) => `$${i + 1}`).join(",");
+    const visibilityWhere = publicMangaVisibilitySql("m");
+    const collectedIds: number[] = [];
+    const seenIds = new Set<number>();
+    const appendIds = (rows: { id: number }[]) => {
+      for (const row of rows) {
+        if (row.id !== mangaId && !seenIds.has(row.id)) {
+          seenIds.add(row.id);
+          collectedIds.push(row.id);
+        }
+      }
+    };
+    const buildQuery = (comparison: string) => `
+    SELECT m.id FROM manga m
+    JOIN manga_genres mg ON mg.manga_id = m.id AND mg.genre_id IN (${placeholders})
+    WHERE ${visibilityWhere} AND m.id ${comparison} $${nextIdx}
+    GROUP BY m.id
+    HAVING COUNT(DISTINCT mg.genre_id) >= $${nextIdx + 1}
+    ORDER BY m.id ASC
+    LIMIT $${nextIdx + 2}
+  `;
+    const baseParams = [...normalizedGenreIds];
+    const forwardRows = await pool.query<{ id: number }>(
+      buildQuery(">="),
+      [...baseParams, anchorId, requiredMatches, limit],
+    );
+    appendIds(forwardRows.rows);
+    if (collectedIds.length < limit) {
+      const remaining = limit - collectedIds.length;
+      const backwardRows = await pool.query<{ id: number }>(
+        buildQuery("<"),
+        [...baseParams, anchorId, requiredMatches, remaining],
+      );
+      appendIds(backwardRows.rows);
+    }
+    return collectedIds;
+  }
+
+  async getMaxMangaId(): Promise<number> {
+    const { rows } = await pool.query<{ max_id: number }>(
+      "SELECT COALESCE(MAX(id), 0) AS max_id FROM manga",
+    );
+    return rows[0]?.max_id ?? 0;
+  }
+
+  async listPublicRecommendationIds(mangaId: number, author: string, genreIds: number[]): Promise<number[]> {
+    const POOL_LIMIT = 80;
+    const RESULT_LIMIT = 10;
+
+    const cacheKey = `recommend:${mangaId}:genres:${genreIds.sort().join(",")}`;
+
+    const sameAuthorIds = await this.listPublicSameAuthorMangaIds(mangaId, author, POOL_LIMIT);
+
+    const genrePoolIds = genreIds.length > 0
+      ? await getOrLoadPool(cacheKey, async () => {
+          const maxMangaId = await this.getMaxMangaId();
+          return this.listPublicSameGenreMangaIds(mangaId, genreIds, POOL_LIMIT, maxMangaId);
+        })
+      : [];
+
+    const merged = [...sameAuthorIds, ...genrePoolIds];
+    const seen = new Set<number>();
+    const deduped: number[] = [];
+
+    for (const id of merged) {
+      if (id !== mangaId && !seen.has(id)) {
+        seen.add(id);
+        deduped.push(id);
+      }
+    }
+
+    for (let i = deduped.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = deduped[i]!;
+      deduped[i] = deduped[j]!;
+      deduped[j] = temp;
+    }
+
+    return deduped.slice(0, RESULT_LIMIT);
   }
 }
 

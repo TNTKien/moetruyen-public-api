@@ -172,6 +172,10 @@ export const mangaV2TeamMangaQuerySchema = teamMangaListQuerySchema.extend({
   include: mangaV2IncludeQuerySchema,
 });
 
+export const mangaV2RecommendationsQuerySchema = z.object({
+  include: mangaV2IncludeQuerySchema,
+});
+
 export const mangaV2IdParamsSchema = mangaIdParamsSchema;
 
 export type MangaV2Include = z.infer<typeof mangaV2IncludeItemSchema>;
@@ -185,4 +189,5 @@ export type MangaV2TopQuery = z.infer<typeof mangaV2TopQuerySchema>;
 export type MangaV2RandomQuery = z.infer<typeof mangaV2RandomQuerySchema>;
 export type MangaV2SearchQuery = z.infer<typeof mangaV2SearchQuerySchema>;
 export type MangaV2TeamMangaQuery = z.infer<typeof mangaV2TeamMangaQuerySchema>;
+export type MangaV2RecommendationsQuery = z.infer<typeof mangaV2RecommendationsQuerySchema>;
 export type MangaV2IdParams = z.infer<typeof mangaV2IdParamsSchema>;
