@@ -139,17 +139,31 @@ export class CommentRepository {
       ),
       pool.query<RecentCommentRow>(
         `
+          WITH recent_comments AS (
+            SELECT
+              c.id,
+              c.content,
+              c.created_at,
+              c.manga_id,
+              c.chapter_number,
+              c.author,
+              c.author_user_id,
+              c.author_avatar_url
+            FROM comments c
+            JOIN manga m ON m.id = c.manga_id
+            WHERE c.status = 'visible'
+              AND c.parent_id IS NULL
+              AND COALESCE(c.client_request_id, '') NOT ILIKE 'forum-%'
+              AND ${publicMangaVisibilitySql("m")}
+            ORDER BY ${orderSql}
+            LIMIT $1
+            OFFSET $2
+          )
           SELECT
             c.id,
             c.content,
             c.created_at,
-            (
-              FLOOR(
-                COUNT(*) FILTER (
-                  WHERE c_scope.id > c.id
-                )::numeric / 20
-              )::int + 1
-            ) AS comment_page,
+            COALESCE(comment_page_calc.comment_page, 1) AS comment_page,
             m.id AS manga_id,
             m.slug AS manga_slug,
             m.title AS manga_title,
@@ -163,44 +177,25 @@ export class CommentRepository {
             c.author_user_id,
             COALESCE(u.username, '') AS author_username,
             c.author_avatar_url
-          FROM comments c
+          FROM recent_comments c
           JOIN manga m ON m.id = c.manga_id
           LEFT JOIN chapters ch ON ch.manga_id = c.manga_id AND ch.number = c.chapter_number
-          LEFT JOIN comments c_scope
-            ON c_scope.status = 'visible'
-            AND c_scope.parent_id IS NULL
-            AND COALESCE(c_scope.client_request_id, '') NOT ILIKE 'forum-%'
-            AND c_scope.manga_id = c.manga_id
-            AND (
-              (c.chapter_number IS NULL AND c_scope.chapter_number IS NULL)
-              OR (c.chapter_number IS NOT NULL AND c_scope.chapter_number = c.chapter_number)
-            )
+          LEFT JOIN LATERAL (
+            SELECT FLOOR(COUNT(*)::numeric / 20)::int + 1 AS comment_page
+            FROM comments c_scope
+            WHERE c_scope.status = 'visible'
+              AND c_scope.parent_id IS NULL
+              AND COALESCE(c_scope.client_request_id, '') NOT ILIKE 'forum-%'
+              AND c_scope.manga_id = c.manga_id
+              AND (
+                (c.chapter_number IS NULL AND c_scope.chapter_number IS NULL)
+                OR (c.chapter_number IS NOT NULL AND c_scope.chapter_number = c.chapter_number)
+              )
+              AND c_scope.id > c.id
+          ) comment_page_calc ON TRUE
           LEFT JOIN users u ON NULLIF(trim(COALESCE(c.author_user_id, '')), '') IS NOT NULL
             AND u.id::text = trim(COALESCE(c.author_user_id, ''))
-          WHERE c.status = 'visible'
-            AND c.parent_id IS NULL
-            AND COALESCE(c.client_request_id, '') NOT ILIKE 'forum-%'
-            AND ${publicMangaVisibilitySql("m")}
-          GROUP BY
-            c.id,
-            c.content,
-            c.created_at,
-            m.id,
-            m.slug,
-            m.title,
-            m.oneshot_locked,
-            ch.id,
-            c.chapter_number,
-            ch.password_hash,
-            ch.interaction_boost_enabled,
-            ch.is_oneshot,
-            c.author,
-            c.author_user_id,
-            u.username,
-            c.author_avatar_url
           ORDER BY ${orderSql}
-          LIMIT $1
-          OFFSET $2
         `,
         [query.limit, offset],
       ),
