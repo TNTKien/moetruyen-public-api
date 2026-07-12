@@ -61,53 +61,13 @@ interface TeamUpdateRow {
   chapter_password_hash: string | null;
 }
 
-interface ApprovedTeamLookupRow {
+interface MangaTeamLookupRow {
+  manga_id: number;
   team_id: number;
   team_name: string;
 }
 
 const buildRoleLabel = (role: string): string => (role.trim().toLowerCase() === "leader" ? "Leader" : "Member");
-
-const normalizeGroupLookupValue = (value: string | null | undefined): string =>
-  (value ?? "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-
-const buildNormalizedGroupTokenList = (value: string | null | undefined): string[] =>
-  normalizeGroupLookupValue(value)
-    .replace(/ \/ /g, ",")
-    .replace(/\//g, ",")
-    .replace(/ & /g, ",")
-    .replace(/&/g, ",")
-    .replace(/ \+ /g, ",")
-    .replace(/\+/g, ",")
-    .replace(/;/g, ",")
-    .replace(/\|/g, ",")
-    .replace(/, /g, ",")
-    .replace(/ ,/g, ",")
-    .split(",")
-    .map((token) => token.trim())
-    .filter(Boolean);
-
-const matchesGroupLookupName = (groupName: string | null | undefined, teamName: string | null | undefined): boolean => {
-  const normalizedGroupName = normalizeGroupLookupValue(groupName);
-  const normalizedTeamName = normalizeGroupLookupValue(teamName);
-
-  if (!normalizedGroupName || !normalizedTeamName) {
-    return false;
-  }
-
-  if (normalizedGroupName === normalizedTeamName) {
-    return true;
-  }
-
-  if (buildNormalizedGroupTokenList(groupName).includes(normalizedTeamName)) {
-    return true;
-  }
-
-  return normalizedGroupName.includes(normalizedTeamName);
-};
 
 const normalizeOptionalText = (value: string | null | undefined): string | null => {
   const text = (value ?? "").trim();
@@ -142,35 +102,6 @@ const mapTeamUpdateItem = (row: TeamUpdateRow): TeamUpdateItem => ({
     groupName: normalizeOptionalText(row.chapter_group_name),
   },
 });
-
-const buildTeamGroupNameListExpr = (columnSql: string) =>
-  `replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(lower(trim(COALESCE(${columnSql}, ''))), ' / ', ','), '/', ','), ' & ', ','), '&', ','), ' + ', ','), '+', ','), ';', ','), '|', ','), ', ', ','), ' ,', ',')`;
-
-const buildTeamGroupNameMatchSql = (columnSql: string) => {
-  const normalizedList = buildTeamGroupNameListExpr(columnSql);
-
-  return `
-    (
-      lower(trim(COALESCE(${columnSql}, ''))) = lower(trim($1))
-      OR (',' || ${normalizedList} || ',') LIKE ('%,' || lower(trim($2)) || ',%')
-      OR lower(COALESCE(${columnSql}, '')) LIKE ('%' || lower(trim($3)) || '%')
-    )
-  `;
-};
-
-const buildEffectiveChapterGroupSql = () => `COALESCE(NULLIF(c.group_name, ''), m.group_name)`;
-
-const buildTeamGroupNameColumnMatchSql = (columnSql: string, teamNameSql: string) => {
-  const normalizedList = buildTeamGroupNameListExpr(columnSql);
-
-  return `
-    (
-      lower(trim(COALESCE(${columnSql}, ''))) = lower(trim(COALESCE(${teamNameSql}, '')))
-      OR (',' || ${normalizedList} || ',') LIKE ('%,' || lower(trim(COALESCE(${teamNameSql}, ''))) || ',%')
-      OR lower(COALESCE(${columnSql}, '')) LIKE ('%' || lower(trim(COALESCE(${teamNameSql}, ''))) || '%')
-    )
-  `;
-};
 
 const mapTeamSummary = (
   teamRow: TeamRow,
@@ -230,42 +161,34 @@ const buildTeamListOrderClause = (sort: TeamListQuery["sort"]): string => {
 };
 
 export class TeamRepository {
-  async resolvePublicGroupsByNames(groupNames: Array<string | null | undefined>): Promise<Map<string, GroupSummary[]>> {
-    const normalizedInputs = Array.from(
-      new Set(
-        groupNames
-          .map((name) => (name ?? "").trim())
-          .filter((name) => name.length > 0),
-      ),
-    );
+  async resolvePublicGroupsByMangaIds(mangaIds: number[]): Promise<Map<number, GroupSummary[]>> {
+    const uniqueIds = Array.from(new Set(mangaIds.filter((id) => Number.isInteger(id) && id > 0)));
 
-    if (normalizedInputs.length === 0) {
+    if (uniqueIds.length === 0) {
       return new Map();
     }
 
-    const { rows } = await pool.query<ApprovedTeamLookupRow>(`
-      SELECT
-        t.id AS team_id,
-        t.name AS team_name
-      FROM translation_teams t
-      WHERE t.status = 'approved'
-      ORDER BY lower(t.name) ASC, t.id ASC
-    `);
-
-    return new Map(
-      normalizedInputs.map((groupName) => {
-        const matches = rows
-          .filter((row) => matchesGroupLookupName(groupName, row.team_name))
-          .map((row) => ({
-            id: row.team_id,
-            name: row.team_name,
-          } satisfies GroupSummary));
-
-        const uniqueMatches = Array.from(new Map(matches.map((item) => [item.id, item])).values());
-
-        return [groupName, uniqueMatches] as const;
-      }),
+    const { rows } = await pool.query<MangaTeamLookupRow>(
+      `
+        SELECT
+          mtt.manga_id,
+          t.id AS team_id,
+          t.name AS team_name
+        FROM manga_translation_teams mtt
+        JOIN translation_teams t ON t.id = mtt.team_id
+        WHERE mtt.manga_id = ANY($1::int[])
+          AND t.status = 'approved'
+        ORDER BY mtt.manga_id ASC, t.id ASC
+      `,
+      [uniqueIds],
     );
+
+    const groupsByMangaId = new Map(uniqueIds.map((id) => [id, [] as GroupSummary[]]));
+    for (const row of rows) {
+      groupsByMangaId.get(row.manga_id)?.push({ id: row.team_id, name: row.team_name });
+    }
+
+    return groupsByMangaId;
   }
 
   private async findApprovedTeamRowById(id: number): Promise<TeamRow | null> {
@@ -318,8 +241,6 @@ export class TeamRepository {
     const listSearchClause = buildTeamListSearchClause(query, listParams);
     listParams.push(query.limit, offset);
     const orderClause = buildTeamListOrderClause(query.sort);
-    const teamNameJoinSql = buildTeamGroupNameColumnMatchSql("m.group_name", "t.name");
-
     const { rows } = await pool.query<
       TeamRow &
       TeamMembersCountRow &
@@ -349,16 +270,15 @@ export class TeamRepository {
         ),
         series_stats AS (
           SELECT
-            t.id AS team_id,
-            COUNT(m.id) AS manga_count,
+            mtt.team_id,
+            COUNT(DISTINCT m.id) AS manga_count,
             COALESCE(SUM(COALESCE(chapter_stats.chapter_count, 0)), 0) AS chapter_count,
             COALESCE(SUM(COALESCE(comment_stats.comment_count, 0)), 0) AS comment_count
-          FROM translation_teams t
-          LEFT JOIN manga m ON ${publicMangaVisibilitySql("m")} AND ${teamNameJoinSql}
+          FROM manga_translation_teams mtt
+          JOIN manga m ON m.id = mtt.manga_id AND ${publicMangaVisibilitySql("m")}
           LEFT JOIN chapter_stats ON chapter_stats.manga_id = m.id
           LEFT JOIN comment_stats ON comment_stats.manga_id = m.id
-          WHERE t.status = 'approved'
-          GROUP BY t.id
+          GROUP BY mtt.team_id
         )
         SELECT
           t.id AS team_id,
@@ -405,8 +325,6 @@ export class TeamRepository {
       return null;
     }
 
-    const safeTeamName = teamRow.team_name.trim();
-
     const [memberCountsResult, seriesStatsResult, commentStatsResult] = await Promise.all([
       pool.query<TeamMembersCountRow>(
         `
@@ -419,41 +337,39 @@ export class TeamRepository {
         `,
         [id],
       ),
-      safeTeamName
-        ? pool.query<TeamSeriesStatsRow>(
-            `
-              SELECT
-                COUNT(*) AS manga_count,
-                COALESCE(SUM(chapter_stats.chapter_count), 0) AS chapter_count
-              FROM manga m
-              LEFT JOIN (
-                SELECT c.manga_id, COUNT(*) AS chapter_count
-                FROM chapters c
-                GROUP BY c.manga_id
-              ) chapter_stats ON chapter_stats.manga_id = m.id
-              WHERE ${publicMangaVisibilitySql("m")}
-                AND ${buildTeamGroupNameMatchSql("m.group_name")}
-            `,
-            [safeTeamName, safeTeamName, safeTeamName],
-          )
-        : Promise.resolve({ rows: [{ manga_count: 0, chapter_count: 0 }] }),
-      safeTeamName
-        ? pool.query<TeamCommentStatsRow>(
-            `
-              SELECT COALESCE(SUM(comment_stats.comment_count), 0) AS comment_count
-              FROM manga m
-              LEFT JOIN (
-                SELECT c.manga_id, COUNT(*) AS comment_count
-                FROM comments c
-                WHERE c.status = 'visible'
-                GROUP BY c.manga_id
-              ) comment_stats ON comment_stats.manga_id = m.id
-              WHERE ${publicMangaVisibilitySql("m")}
-                AND ${buildTeamGroupNameMatchSql("m.group_name")}
-            `,
-            [safeTeamName, safeTeamName, safeTeamName],
-          )
-        : Promise.resolve({ rows: [{ comment_count: 0 }] }),
+      pool.query<TeamSeriesStatsRow>(
+        `
+          SELECT
+            COUNT(*) AS manga_count,
+            COALESCE(SUM(chapter_stats.chapter_count), 0) AS chapter_count
+          FROM manga_translation_teams mtt
+          JOIN manga m ON m.id = mtt.manga_id
+          LEFT JOIN (
+            SELECT c.manga_id, COUNT(*) AS chapter_count
+            FROM chapters c
+            GROUP BY c.manga_id
+          ) chapter_stats ON chapter_stats.manga_id = m.id
+          WHERE mtt.team_id = $1
+            AND ${publicMangaVisibilitySql("m")}
+        `,
+        [id],
+      ),
+      pool.query<TeamCommentStatsRow>(
+        `
+          SELECT COALESCE(SUM(comment_stats.comment_count), 0) AS comment_count
+          FROM manga_translation_teams mtt
+          JOIN manga m ON m.id = mtt.manga_id
+          LEFT JOIN (
+            SELECT c.manga_id, COUNT(*) AS comment_count
+            FROM comments c
+            WHERE c.status = 'visible'
+            GROUP BY c.manga_id
+          ) comment_stats ON comment_stats.manga_id = m.id
+          WHERE mtt.team_id = $1
+            AND ${publicMangaVisibilitySql("m")}
+        `,
+        [id],
+      ),
     ]);
 
     return mapTeamSummary(teamRow, {
@@ -504,7 +420,7 @@ export class TeamRepository {
       return null;
     }
 
-    return mangaRepository.listPublicMangaByGroupName(team.team_name, {
+    return mangaRepository.listPublicMangaByTeamId(id, {
       ...query,
       hasChapters: 0,
     });
@@ -517,17 +433,7 @@ export class TeamRepository {
       return null;
     }
 
-    const safeTeamName = team.team_name.trim();
-
-    if (!safeTeamName) {
-      return {
-        items: [],
-        total: 0,
-      };
-    }
-
     const offset = (query.page - 1) * query.limit;
-    const effectiveGroupSql = buildEffectiveChapterGroupSql();
 
     const [countResult, rowsResult] = await Promise.all([
       pool.query<TeamUpdateCountRow>(
@@ -535,11 +441,12 @@ export class TeamRepository {
           SELECT COUNT(*) AS total
           FROM chapters c
           JOIN manga m ON m.id = c.manga_id
+          JOIN manga_translation_teams mtt ON mtt.manga_id = m.id
           WHERE ${publicMangaVisibilitySql("m")}
             AND lower(COALESCE(c.processing_state, '')) <> 'processing'
-            AND ${buildTeamGroupNameMatchSql(effectiveGroupSql)}
+            AND mtt.team_id = $1
         `,
-        [safeTeamName, safeTeamName, safeTeamName],
+        [id],
       ),
       pool.query<TeamUpdateRow>(
         `
@@ -559,14 +466,15 @@ export class TeamRepository {
             c.password_hash AS chapter_password_hash
           FROM chapters c
           JOIN manga m ON m.id = c.manga_id
+          JOIN manga_translation_teams mtt ON mtt.manga_id = m.id
           WHERE ${publicMangaVisibilitySql("m")}
             AND lower(COALESCE(c.processing_state, '')) <> 'processing'
-            AND ${buildTeamGroupNameMatchSql(effectiveGroupSql)}
+            AND mtt.team_id = $1
           ORDER BY c.id DESC
-          LIMIT $4
-          OFFSET $5
+          LIMIT $2
+          OFFSET $3
         `,
-        [safeTeamName, safeTeamName, safeTeamName, query.limit, offset],
+        [id, query.limit, offset],
       ),
     ]);
 

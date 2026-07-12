@@ -1,4 +1,6 @@
-import { bigint, boolean, integer, pgTable, text } from "drizzle-orm/pg-core";
+import { bigint, boolean, foreignKey, integer, pgTable, primaryKey, text } from "drizzle-orm/pg-core";
+
+import { manga } from "./manga.js";
 
 export const translationTeams = pgTable("translation_teams", {
   id: integer().primaryKey(),
@@ -17,6 +19,27 @@ export const translationTeams = pgTable("translation_teams", {
   avatarUrl: text("avatar_url"),
   coverUrl: text("cover_url"),
 });
+
+export const mangaTranslationTeams = pgTable(
+  "manga_translation_teams",
+  {
+    mangaId: integer("manga_id").notNull(),
+    teamId: integer("team_id").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.mangaId, table.teamId] }),
+    foreignKey({
+      columns: [table.mangaId],
+      foreignColumns: [manga.id],
+      name: "manga_translation_teams_manga_id_fkey",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.teamId],
+      foreignColumns: [translationTeams.id],
+      name: "manga_translation_teams_team_id_fkey",
+    }).onDelete("cascade"),
+  ],
+);
 
 export const translationTeamMembers = pgTable("translation_team_members", {
   teamId: integer("team_id").notNull(),

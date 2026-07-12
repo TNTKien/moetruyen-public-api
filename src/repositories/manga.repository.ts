@@ -8,6 +8,7 @@ import { db } from "../db/client.js";
 import { chapters } from "../db/schema/chapters.js";
 import { genres, mangaGenres } from "../db/schema/genres.js";
 import { manga } from "../db/schema/manga.js";
+import { mangaTranslationTeams } from "../db/schema/teams.js";
 import {
   buildCoverUrl,
   formatNumericText,
@@ -227,50 +228,12 @@ const buildExcludedGenreIdsFilter = (genreIds: number[]): SQL<unknown> => sql`
   )
 `;
 
-const buildGroupNameMatchFilter = (groupName: string): SQL<unknown> => sql`
-  (
-    lower(trim(coalesce(${manga.groupName}, ''))) = lower(trim(${groupName}))
-    OR (
-      ',' ||
-      replace(
-        replace(
-          replace(
-            replace(
-              replace(
-                replace(
-                  replace(
-                    replace(
-                      replace(
-                        replace(lower(trim(coalesce(${manga.groupName}, ''))), ' / ', ','),
-                        '/',
-                        ','
-                      ),
-                      ' & ',
-                      ','
-                    ),
-                    '&',
-                    ','
-                  ),
-                  ' + ',
-                  ','
-                ),
-                '+',
-                ','
-              ),
-              ';',
-              ','
-            ),
-            '|',
-            ','
-          ),
-          ', ',
-          ','
-        ),
-        ' ,',
-        ','
-      ) || ','
-    ) LIKE ('%,' || lower(trim(${groupName})) || ',%')
-    OR lower(coalesce(${manga.groupName}, '')) LIKE ('%' || lower(trim(${groupName})) || '%')
+const buildTeamIdFilter = (teamId: number): SQL<unknown> => sql`
+  exists (
+    select 1
+    from ${mangaTranslationTeams}
+    where ${mangaTranslationTeams.mangaId} = ${manga.id}
+      and ${mangaTranslationTeams.teamId} = ${teamId}
   )
 `;
 
@@ -1031,16 +994,14 @@ export class MangaRepository {
     }
   }
 
-  async listPublicMangaByGroupName(groupName: string, query: MangaListQuery): Promise<PublicMangaListResult> {
-    const normalizedGroupName = groupName.trim();
-    const conditions = [...buildMangaConditions(query), buildGroupNameMatchFilter(normalizedGroupName)];
+  async listPublicMangaByTeamId(teamId: number, query: MangaListQuery): Promise<PublicMangaListResult> {
+    const conditions = [...buildMangaConditions(query), buildTeamIdFilter(teamId)];
 
     return this.listPublicMangaWithConditions(query, conditions);
   }
 
-  async listPublicMangaByGroupNameV2(groupName: string, query: MangaV2TeamMangaQuery): Promise<PublicMangaListResult> {
-    const normalizedGroupName = groupName.trim();
-    const conditions = [...buildMangaConditionsV2(query), buildGroupNameMatchFilter(normalizedGroupName)];
+  async listPublicMangaByTeamIdV2(teamId: number, query: MangaV2TeamMangaQuery): Promise<PublicMangaListResult> {
+    const conditions = [...buildMangaConditionsV2(query), buildTeamIdFilter(teamId)];
 
     return this.listPublicMangaWithConditions(query, conditions);
   }
