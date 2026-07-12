@@ -18,13 +18,13 @@ const { teamRepository } = await import("../src/repositories/team.repository.js"
 const originals = {
   listTopPublicManga: mangaService.listTopPublicManga,
   getPublicMangaStatsByIds: mangaRepository.getPublicMangaStatsByIds,
-  resolvePublicGroupsByNames: teamRepository.resolvePublicGroupsByNames,
+  resolvePublicGroupsByMangaIds: teamRepository.resolvePublicGroupsByMangaIds,
 };
 
 afterEach(() => {
   mangaService.listTopPublicManga = originals.listTopPublicManga;
   mangaRepository.getPublicMangaStatsByIds = originals.getPublicMangaStatsByIds;
-  teamRepository.resolvePublicGroupsByNames = originals.resolvePublicGroupsByNames;
+  teamRepository.resolvePublicGroupsByMangaIds = originals.resolvePublicGroupsByMangaIds;
 });
 
 const rankedTopItem = {
@@ -59,8 +59,8 @@ describe("manga v2 service", () => {
       total: 1,
     });
 
-    teamRepository.resolvePublicGroupsByNames = async () => new Map([
-      ["Test Team", [{ id: 7, name: "Test Team" }]],
+    teamRepository.resolvePublicGroupsByMangaIds = async () => new Map([
+      [1, [{ id: 7, name: "Test Team" }]],
     ]);
 
     mangaRepository.getPublicMangaStatsByIds = async () => new Map([
@@ -110,8 +110,8 @@ describe("manga v2 service", () => {
       total: query.time === "all_time" ? 1 : 0,
     });
 
-    teamRepository.resolvePublicGroupsByNames = async () => new Map([
-      ["Test Team", [{ id: 7, name: "Test Team" }]],
+    teamRepository.resolvePublicGroupsByMangaIds = async () => new Map([
+      [1, [{ id: 7, name: "Test Team" }]],
     ]);
 
     mangaRepository.getPublicMangaStatsByIds = async () => new Map([
@@ -144,8 +144,8 @@ describe("manga v2 service", () => {
       total: 1,
     });
 
-    teamRepository.resolvePublicGroupsByNames = async () => new Map([
-      ["Test Team", [{ id: 7, name: "Test Team" }]],
+    teamRepository.resolvePublicGroupsByMangaIds = async () => new Map([
+      [1, [{ id: 7, name: "Test Team" }]],
     ]);
 
     mangaRepository.getPublicMangaStatsByIds = async () => new Map([
@@ -193,8 +193,8 @@ describe("manga v2 service", () => {
       total: 1,
     });
 
-    teamRepository.resolvePublicGroupsByNames = async () => new Map([
-      ["Test Team", [{ id: 7, name: "Test Team" }]],
+    teamRepository.resolvePublicGroupsByMangaIds = async () => new Map([
+      [1, [{ id: 7, name: "Test Team" }]],
     ]);
 
     mangaRepository.getPublicMangaStatsByIds = async () => new Map();
@@ -225,8 +225,8 @@ describe("manga v2 service", () => {
       total: query.time === "all_time" ? 1 : 0,
     });
 
-    teamRepository.resolvePublicGroupsByNames = async () => new Map([
-      ["Test Team", [{ id: 7, name: "Test Team" }]],
+    teamRepository.resolvePublicGroupsByMangaIds = async () => new Map([
+      [1, [{ id: 7, name: "Test Team" }]],
     ]);
 
     mangaRepository.getPublicMangaStatsByIds = async () => new Map([

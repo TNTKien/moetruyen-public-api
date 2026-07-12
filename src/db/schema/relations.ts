@@ -3,12 +3,13 @@ import { relations } from "drizzle-orm";
 import { chapters } from "./chapters.js";
 import { genres, mangaGenres } from "./genres.js";
 import { manga } from "./manga.js";
-import { translationTeamMembers, translationTeams } from "./teams.js";
+import { mangaTranslationTeams, translationTeamMembers, translationTeams } from "./teams.js";
 import { users } from "./users.js";
 
 export const mangaRelations = relations(manga, ({ many }) => ({
   chapters: many(chapters),
   mangaGenres: many(mangaGenres),
+  translationTeams: many(mangaTranslationTeams),
 }));
 
 export const chaptersRelations = relations(chapters, ({ one }) => ({
@@ -35,6 +36,18 @@ export const mangaGenresRelations = relations(mangaGenres, ({ one }) => ({
 
 export const translationTeamsRelations = relations(translationTeams, ({ many }) => ({
   members: many(translationTeamMembers),
+  manga: many(mangaTranslationTeams),
+}));
+
+export const mangaTranslationTeamsRelations = relations(mangaTranslationTeams, ({ one }) => ({
+  manga: one(manga, {
+    fields: [mangaTranslationTeams.mangaId],
+    references: [manga.id],
+  }),
+  team: one(translationTeams, {
+    fields: [mangaTranslationTeams.teamId],
+    references: [translationTeams.id],
+  }),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({

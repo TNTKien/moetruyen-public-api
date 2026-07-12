@@ -55,12 +55,12 @@ const buildStatsById = async (items: Array<{ id: number }>, includes: MangaV2Inc
   );
 };
 
-const attachGroupsToMangaItems = async <T extends Pick<MangaListItem, "groupName" | "groups">>(items: T[]): Promise<T[]> => {
-  const groupsByName = await teamRepository.resolvePublicGroupsByNames(items.map((item) => item.groupName));
+const attachGroupsToMangaItems = async <T extends Pick<MangaListItem, "id" | "groupName" | "groups">>(items: T[]): Promise<T[]> => {
+  const groupsByMangaId = await teamRepository.resolvePublicGroupsByMangaIds(items.map((item) => item.id));
 
   return items.map((item) => ({
     ...item,
-    groups: groupsByName.get((item.groupName ?? "").trim()) ?? [],
+    groups: groupsByMangaId.get(item.id) ?? [],
   }));
 };
 
@@ -169,7 +169,7 @@ export const mangaV2Service = {
       return null;
     }
 
-    const result = await mangaRepository.listPublicMangaByGroupNameV2(team.name, query);
+    const result = await mangaRepository.listPublicMangaByTeamIdV2(id, query);
     const itemsWithGroups = await attachGroupsToMangaItems(result.items);
     const statsById = await buildStatsById(itemsWithGroups, query.include);
 
